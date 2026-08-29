@@ -22,6 +22,8 @@ export interface AdminSession {
   sub: string;
   username: string;
   displayName: string | null;
+  role: "ADMIN" | "MANAGER";
+  batch?: number | null;
 }
 
 function sessionSecret(): Uint8Array {
@@ -61,6 +63,8 @@ export async function createSessionToken(
   return new SignJWT({
     username: session.username,
     displayName: session.displayName,
+    role: session.role ?? "MANAGER",
+    batch: session.batch ?? null,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(session.sub)
@@ -87,6 +91,8 @@ export async function verifySessionToken(
       username: payload.username,
       displayName:
         typeof payload.displayName === "string" ? payload.displayName : null,
+      role: (payload.role as "ADMIN" | "MANAGER") ?? "MANAGER",
+      batch: typeof payload.batch === "number" ? payload.batch : null,
     };
   } catch {
     return null;
@@ -115,7 +121,34 @@ export async function clearSessionCookie(): Promise<void> {
 /** The currently logged-in admin, or null. */
 export async function getSession(): Promise<AdminSession | null> {
   const cookieStore = await cookies();
-  return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const session = await verifySessionToken(token);
+  if (!session) return null;
+
+  try {
+    const user = await prisma.adminUser.findUnique({
+      where: { id: session.sub, isActive: true },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        role: true,
+        batch: true,
+      },
+    });
+
+    if (!user) return null;
+
+    return {
+      sub: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      batch: user.batch,
+    };
+  } catch {
+    return session;
+  }
 }
 
 /**
@@ -151,6 +184,7 @@ export async function getAuthenticatedAdmin(req?: NextRequest) {
       email: true,
       displayName: true,
       role: true,
+      batch: true,
     },
   });
 

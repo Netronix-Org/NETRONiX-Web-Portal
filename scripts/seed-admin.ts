@@ -25,7 +25,6 @@ async function main() {
   let email = process.env.ADMIN_EMAIL;
   let password = process.env.ADMIN_PASSWORD;
   const name = process.env.ADMIN_NAME || "System Administrator";
-  const username = process.env.ADMIN_USERNAME || "admin";
 
   if (!email) {
     email = await askQuestion("Enter Administrator Email: ");
@@ -34,6 +33,13 @@ async function main() {
   if (!email || !email.includes("@")) {
     console.error("❌ Error: A valid email address is required.");
     process.exit(1);
+  }
+
+  let username = process.env.ADMIN_USERNAME;
+  if (!username) {
+    const defaultUser = email.split("@")[0];
+    const userPrompt = await askQuestion(`Enter Username (press enter for "${defaultUser}"): `);
+    username = userPrompt.trim() || defaultUser;
   }
 
   if (!password) {
@@ -51,8 +57,9 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const admin = await prisma.adminUser.upsert({
-    where: { email: cleanEmail },
+    where: { username },
     update: {
+      email: cleanEmail,
       displayName: name,
       passwordHash,
       role: Role.ADMIN,
@@ -69,10 +76,11 @@ async function main() {
   });
 
   console.log("\n✅ Success! Admin account provisioned:");
-  console.log(`   ID:    ${admin.id}`);
-  console.log(`   Name:  ${admin.displayName}`);
-  console.log(`   Email: ${admin.email}`);
-  console.log(`   Role:  ${admin.role}\n`);
+  console.log(`   ID:       ${admin.id}`);
+  console.log(`   Username: ${admin.username}`);
+  console.log(`   Name:     ${admin.displayName}`);
+  console.log(`   Email:    ${admin.email}`);
+  console.log(`   Role:     ${admin.role}\n`);
   console.log("You can now log in at /admin/login\n");
 }
 

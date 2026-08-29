@@ -6,6 +6,8 @@ import type { AdminSession } from "@/lib/auth";
 import type { Event, EventStatus } from "@prisma/client";
 import { EventControls } from "./event-controls";
 import { SubmissionsTable } from "./submissions-table";
+import { UsersManager } from "./users-manager";
+import { Users, Calendar, Inbox, MessageSquare } from "lucide-react";
 
 interface AdminDashboardProps {
   session: AdminSession;
@@ -15,7 +17,7 @@ interface AdminDashboardProps {
   statuses: Record<string, EventStatus>;
 }
 
-type Tab = "events" | "submissions";
+type Tab = "events" | "submissions" | "team";
 
 export function AdminDashboard({
   session,
@@ -43,6 +45,8 @@ export function AdminDashboard({
     setTab("submissions");
   }
 
+  const roleLabel = session.role === "ADMIN" ? "Executive Admin" : `Junior Coordinator${session.batch ? ` (Batch ${session.batch})` : ""}`;
+
   return (
     <main
       className="min-h-screen w-full px-4 md:px-8 py-10"
@@ -53,12 +57,19 @@ export function AdminDashboard({
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <p
-              className="font-mono text-xs uppercase tracking-widest"
-              style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
-            >
-              NETRONiX Admin
-            </p>
+            <div className="flex items-center gap-2">
+              <p
+                className="font-mono text-xs uppercase tracking-widest"
+                style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
+              >
+                NETRONiX Admin
+              </p>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+                session.role === "ADMIN" ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-sky-500/20 text-sky-400 border border-sky-500/30"
+              }`}>
+                {roleLabel}
+              </span>
+            </div>
             <h1
               className="font-heading font-semibold"
               style={{ fontSize: "clamp(1.75rem, 4vw, 2.5rem)", letterSpacing: "-0.03em" }}
@@ -73,7 +84,7 @@ export function AdminDashboard({
 
           <button
             onClick={logout}
-            className="py-2.5 px-5 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03]"
+            className="py-2.5 px-5 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03] cursor-pointer"
             style={{ borderColor: "rgba(255,255,255,0.12)", color: "#B3B3B3" }}
           >
             Sign out
@@ -82,35 +93,56 @@ export function AdminDashboard({
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
         <div
-          className="flex gap-1 p-1 rounded-xl border w-fit"
+          className="flex flex-wrap gap-1 p-1 rounded-xl border w-fit"
           style={{ backgroundColor: "#141414", borderColor: "rgba(255,255,255,0.08)" }}
         >
-          {([
-            ["events", "Events"],
-            ["submissions", "Submissions"],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setTab(value)}
-              className="py-2 px-5 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                backgroundColor:
-                  tab === value ? "rgba(225,29,46,0.15)" : "transparent",
-                color: tab === value ? "#FFFFFF" : "#666666",
-              }}
-            >
-              {label}
-            </button>
-          ))}
           <button
-            onClick={() => router.push("/admin/complaints")}
-            className="py-2 px-5 rounded-lg text-sm font-medium transition-colors"
+            onClick={() => setTab("events")}
+            className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
             style={{
-              backgroundColor: "transparent",
-              color: "#666666",
+              backgroundColor:
+                tab === "events" ? "rgba(225,29,46,0.15)" : "transparent",
+              color: tab === "events" ? "#FFFFFF" : "#888888",
             }}
           >
-            Complaints
+            <Calendar className="w-3.5 h-3.5" />
+            Events
+          </button>
+
+          <button
+            onClick={() => setTab("submissions")}
+            className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
+            style={{
+              backgroundColor:
+                tab === "submissions" ? "rgba(225,29,46,0.15)" : "transparent",
+              color: tab === "submissions" ? "#FFFFFF" : "#888888",
+            }}
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            Submissions ({totalSubmissions})
+          </button>
+
+          {session.role === "ADMIN" && (
+            <button
+              onClick={() => setTab("team")}
+              className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
+              style={{
+                backgroundColor:
+                  tab === "team" ? "rgba(225,29,46,0.15)" : "transparent",
+                color: tab === "team" ? "#FFFFFF" : "#888888",
+              }}
+            >
+              <Users className="w-3.5 h-3.5" />
+              Junior Accounts & Team
+            </button>
+          )}
+
+          <button
+            onClick={() => router.push("/admin/complaints")}
+            className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer text-neutral-400 hover:text-white"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-red-500" />
+            Complaints Desk ↗
           </button>
         </div>
 
@@ -193,6 +225,13 @@ export function AdminDashboard({
                 Select an event to see its submissions.
               </p>
             )}
+          </section>
+        )}
+
+        {/* ── Team & Junior Accounts tab ──────────────────────────────────── */}
+        {tab === "team" && session.role === "ADMIN" && (
+          <section className="flex flex-col gap-5">
+            <UsersManager session={session} />
           </section>
         )}
       </div>

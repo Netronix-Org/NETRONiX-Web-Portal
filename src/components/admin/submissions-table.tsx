@@ -179,7 +179,21 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                   >
                     <td className="px-4 py-3" style={{ color: "#FFFFFF" }}>
-                      {reg.fullName}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{reg.fullName}</span>
+                        {reg.isPreRegistration && (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border"
+                            style={{
+                              color: "#38BDF8",
+                              backgroundColor: "rgba(56,189,248,0.12)",
+                              borderColor: "rgba(56,189,248,0.3)",
+                            }}
+                          >
+                            Pre-Reg
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs" style={{ color: "#B3B3B3" }}>
                       {reg.registrationNumber}
@@ -230,6 +244,13 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                     <tr key={`${reg.id}-detail`} style={{ backgroundColor: "#0F0F0F" }}>
                       <td colSpan={7} className="px-4 py-5">
                         <div className="flex flex-col gap-4">
+                          {reg.isPreRegistration && (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium border border-sky-500/30 bg-sky-500/10 text-sky-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                              Pre-Registration Submission
+                            </div>
+                          )}
+
                           <div className="flex flex-col gap-1.5">
                             <p
                               className="font-mono text-xs uppercase tracking-widest"

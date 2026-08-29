@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { effectiveStatus, isRegistrationOpen, STATUS_LABEL } from "@/lib/events";
+import { effectiveStatus, isRegistrationOpen, isPreRegistration, STATUS_LABEL } from "@/lib/events";
 import { RegistrationForm } from "@/components/forms/registration-form";
 import type { Event } from "@prisma/client";
 import { fetchEventBySlug } from "@/lib/events-data";
@@ -24,8 +24,11 @@ export async function generateMetadata({
 
   if (!event) return { title: "Register — NETRONiX" };
 
+  const isPreReg = isPreRegistration(event);
+  const prefix = isPreReg ? "Pre-Register" : "Register";
+
   return {
-    title: `Register — ${event.title} | NETRONiX`,
+    title: `${prefix} — ${event.title} | NETRONiX`,
     description: event.description,
     robots: { index: false, follow: true },
   };
@@ -43,6 +46,7 @@ export default async function RegisterPage({
 
   const status = effectiveStatus(event);
   const open = isRegistrationOpen(event);
+  const isPreReg = isPreRegistration(event);
 
   return (
     <main
@@ -85,14 +89,25 @@ export default async function RegisterPage({
           )}
 
           <div className="flex flex-col gap-3">
-            {event.subtitle && (
+            {isPreReg ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium border w-fit"
+                style={{
+                  color: "#38BDF8",
+                  backgroundColor: "rgba(56,189,248,0.12)",
+                  borderColor: "rgba(56,189,248,0.3)",
+                }}
+              >
+                <span className="w-2 h-2 rounded-full bg-[#38BDF8] animate-pulse" />
+                ⚡ PRE-REGISTRATION OPEN · EVENT COMING SOON
+              </div>
+            ) : event.subtitle ? (
               <p
                 className="font-mono text-xs uppercase tracking-widest"
                 style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
               >
                 {event.subtitle}
               </p>
-            )}
+            ) : null}
 
             <h1
               className="font-heading font-semibold"
@@ -102,11 +117,13 @@ export default async function RegisterPage({
                 letterSpacing: "-0.03em",
               }}
             >
-              {event.title}
+              {isPreReg ? `Pre-Register: ${event.title}` : event.title}
             </h1>
 
             <p className="text-base leading-relaxed" style={{ color: "#B3B3B3" }}>
-              {event.description}
+              {isPreReg
+                ? `${event.description} Submit your pre-registration below to secure early access and priority entry.`
+                : event.description}
             </p>
           </div>
         </header>
@@ -117,13 +134,13 @@ export default async function RegisterPage({
             {event.formIntro && (
               <p
                 className="text-sm leading-relaxed border-l-2 pl-4"
-                style={{ color: "#B3B3B3", borderColor: "#E11D2E" }}
+                style={{ color: "#B3B3B3", borderColor: isPreReg ? "#38BDF8" : "#E11D2E" }}
               >
                 {event.formIntro}
               </p>
             )}
 
-            <RegistrationForm slug={event.slug} eventTitle={event.title} />
+            <RegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
           </>
         ) : (
           <div

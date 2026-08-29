@@ -64,9 +64,10 @@ function FieldError({ message }: { message?: string }) {
 interface RegistrationFormProps {
   slug: string;
   eventTitle: string;
+  isPreReg?: boolean;
 }
 
-export function RegistrationForm({ slug, eventTitle }: RegistrationFormProps) {
+export function RegistrationForm({ slug, eventTitle, isPreReg = false }: RegistrationFormProps) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ id: string } | null>(null);
 
@@ -141,18 +142,19 @@ export function RegistrationForm({ slug, eventTitle }: RegistrationFormProps) {
       >
         <p
           className="font-mono text-xs uppercase tracking-widest"
-          style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
+          style={{ color: isPreReg ? "#38BDF8" : "#E11D2E", letterSpacing: "0.12em" }}
         >
-          Registration received
+          {isPreReg ? "Pre-Registration Confirmed" : "Registration received"}
         </p>
 
         <h2 className="font-heading font-semibold text-2xl">
-          You&apos;re in for {eventTitle}.
+          {isPreReg ? `You're on the early list for ${eventTitle}.` : `You're in for ${eventTitle}.`}
         </h2>
 
         <p className="text-sm leading-relaxed" style={{ color: "#B3B3B3" }}>
-          Your submission is saved. Keep this reference in case you need to ask
-          us about it.
+          {isPreReg
+            ? "Your pre-registration has been recorded. We will notify you with priority updates once the event officially launches."
+            : "Your submission is saved. Keep this reference in case you need to ask us about it."}
         </p>
 
         <code
@@ -416,14 +418,16 @@ export function RegistrationForm({ slug, eventTitle }: RegistrationFormProps) {
         disabled={isSubmitting}
         whileHover={!isSubmitting ? { scale: 1.01 } : {}}
         whileTap={!isSubmitting ? { scale: 0.99 } : {}}
-        className="w-full py-3.5 px-6 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-3.5 px-6 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         style={{
-          backgroundColor: "rgba(225,29,46,0.12)",
-          borderColor: "rgba(225,29,46,0.5)",
+          backgroundColor: isPreReg ? "rgba(56,189,248,0.15)" : "rgba(225,29,46,0.12)",
+          borderColor: isPreReg ? "rgba(56,189,248,0.5)" : "rgba(225,29,46,0.5)",
           color: "#FFFFFF",
         }}
       >
-        {isSubmitting ? "Submitting..." : `Register for ${eventTitle} →`}
+        {isSubmitting
+          ? (isPreReg ? "Submitting Pre-Registration..." : "Submitting...")
+          : (isPreReg ? `Pre-Register for ${eventTitle} →` : `Register for ${eventTitle} →`)}
       </motion.button>
 
       <p className="text-xs text-center" style={{ color: "#666666" }}>

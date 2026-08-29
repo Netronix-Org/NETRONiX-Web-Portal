@@ -5,13 +5,15 @@ import type { EventRow } from "@/lib/events-data";
 import {
   effectiveStatus,
   isRegistrationOpen,
+  isPreRegistration,
+  getRegisterButtonLabel,
   registrationHref,
 } from "@/lib/events";
 
 /**
  * Events are now driven by the `events` table in Supabase. Flip an event to
- * "Live Now" in /admin/portal and its card here turns into a working Register
- * button pointing at that event's registration form.
+ * "Live Now" or "Coming Soon with Registrations Open" in /admin/portal and its card
+ * here turns into a working Register / Pre-Register button pointing at that event's form.
  *
  * Server Component — the fetch happens on the server on every request, so a
  * status change in the portal shows up on the next page load. The homepage
@@ -80,6 +82,8 @@ export async function Events() {
                 subtitle={featured.subtitle || ""}
                 description={featured.description}
                 status={effectiveStatus(featured)}
+                isPreReg={isPreRegistration(featured)}
+                buttonLabel={getRegisterButtonLabel(featured)}
                 accentColor={featured.accentColor}
                 imagePlaceholder={featured.imagePlaceholder || ""}
                 imageSrc={featured.imageSrc || ""}
@@ -100,6 +104,8 @@ export async function Events() {
                 subtitle={event.subtitle || ""}
                 description={event.description}
                 status={effectiveStatus(event)}
+                isPreReg={isPreRegistration(event)}
+                buttonLabel={getRegisterButtonLabel(event)}
                 accentColor={event.accentColor}
                 imagePlaceholder={event.imagePlaceholder || ""}
                 imageSrc={event.imageSrc || ""}
