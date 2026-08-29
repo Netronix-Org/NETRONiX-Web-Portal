@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { RegistrationSchema } from "@/lib/validation/registration";
-import { isRegistrationOpen } from "@/lib/events";
+import { isRegistrationOpen, isPreRegistration } from "@/lib/events";
 
 /**
  * POST /api/events/[slug]/register
@@ -78,6 +78,8 @@ export async function POST(
   }
 
   // ─── Insert ───────────────────────────────────────────────────────────────
+  const isPreReg = isPreRegistration(event);
+
   try {
     const inserted = await prisma.registration.create({
       data: {
@@ -91,15 +93,19 @@ export async function POST(
         aboutNetronix: data.aboutNetronix,
         skills: data.skills,
         otherSkill: data.otherSkill?.trim() || null,
+        isPreRegistration: isPreReg,
       },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, isPreRegistration: true },
     });
 
     return NextResponse.json(
       {
         id: inserted.id,
         submittedAt: inserted.createdAt,
-        message: `You are registered for ${event.title}.`,
+        isPreRegistration: inserted.isPreRegistration,
+        message: isPreReg
+          ? `You are pre-registered for ${event.title}.`
+          : `You are registered for ${event.title}.`,
       },
       { status: 201 }
     );

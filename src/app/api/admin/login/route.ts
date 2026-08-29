@@ -47,7 +47,15 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.adminUser.findUnique({
     where: { username },
-    select: { id: true, username: true, passwordHash: true, displayName: true },
+    select: {
+      id: true,
+      username: true,
+      passwordHash: true,
+      displayName: true,
+      role: true,
+      batch: true,
+      isActive: true,
+    },
   });
 
   // Compare against a dummy hash when the user does not exist, so the response
@@ -65,10 +73,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!user.isActive) {
+    return NextResponse.json(
+      { message: "This account has been deactivated. Please contact an Administrator." },
+      { status: 403 }
+    );
+  }
+
   const token = await createSessionToken({
     sub: user.id,
     username: user.username,
     displayName: user.displayName,
+    role: user.role,
+    batch: user.batch,
   });
 
   await setSessionCookie(token);

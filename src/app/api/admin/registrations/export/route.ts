@@ -13,6 +13,7 @@ import type { Registration } from "@prisma/client";
 
 const COLUMNS = [
   "Submitted At",
+  "Type",
   "Name",
   "Registration Number",
   "Batch",
@@ -36,6 +37,7 @@ function csvCell(value: unknown): string {
 function toCsvRow(reg: Registration): string {
   return [
     reg.createdAt.toISOString(),
+    reg.isPreRegistration ? "Pre-Registration" : "Regular",
     reg.fullName,
     reg.registrationNumber,
     reg.batch,

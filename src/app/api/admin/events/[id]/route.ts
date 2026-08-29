@@ -12,8 +12,19 @@ import { EventStatus } from "@prisma/client";
  */
 
 const nullableDate = z
-  .union([z.string().datetime({ offset: true }), z.literal(""), z.null()])
-  .transform((v) => (v === "" || v === null ? null : new Date(v)))
+  .union([
+    z.string().datetime({ offset: true }),
+    z.string().datetime(),
+    z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/),
+    z.string().refine((val) => !isNaN(Date.parse(val))),
+    z.literal(""),
+    z.null(),
+  ])
+  .transform((v) => {
+    if (!v || v === "" || v === null) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  })
   .optional();
 
 const UpdateSchema = z.object({

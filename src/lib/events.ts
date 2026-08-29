@@ -41,7 +41,26 @@ export function isRegistrationOpen(
   event: Pick<Event, "status" | "autoLiveAt" | "autoCloseAt" | "registrationOpen">,
   now: Date = new Date()
 ): boolean {
-  return event.registrationOpen && effectiveStatus(event, now) === "live";
+  const status = effectiveStatus(event, now);
+  if (status === "past") return false;
+  return event.registrationOpen && (status === "live" || status === "coming_soon");
+}
+
+/** Is the event in Pre-Registration mode (Coming Soon + Registrations Open)? */
+export function isPreRegistration(
+  event: Pick<Event, "status" | "autoLiveAt" | "autoCloseAt" | "registrationOpen">,
+  now: Date = new Date()
+): boolean {
+  return event.registrationOpen && effectiveStatus(event, now) === "coming_soon";
+}
+
+/** Button label on the event card based on registration state */
+export function getRegisterButtonLabel(
+  event: Pick<Event, "status" | "autoLiveAt" | "autoCloseAt" | "registrationOpen">,
+  now: Date = new Date()
+): string {
+  if (isPreRegistration(event, now)) return "Pre-Register →";
+  return "Register →";
 }
 
 /** Where the event card's button points. */

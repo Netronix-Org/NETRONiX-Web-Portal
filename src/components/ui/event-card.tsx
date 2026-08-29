@@ -16,9 +16,12 @@ interface EventCardProps {
   subtitle?: string;
   description: string;
   status: EventStatus;
+  /** True when event is in Coming Soon state but accepting pre-registrations */
+  isPreReg?: boolean;
+  /** Custom button label (e.g. "Pre-Register →" vs "Register →") */
+  buttonLabel?: string;
   /**
-   * Registration form URL. Passed only when the event is live and accepting
-   * registrations — otherwise the card falls back to a Coming Soon state.
+   * Registration form URL. Passed when the event is open for registrations or pre-registrations.
    */
   registerHref?: string;
   /** Optional aspect ratio class, defaults to "aspect-video" */
@@ -42,6 +45,8 @@ export function EventCard({
   subtitle,
   description,
   status,
+  isPreReg = false,
+  buttonLabel,
   registerHref,
   aspectClass = "aspect-video",
   accentColor = "#1A1A1A",
@@ -93,19 +98,37 @@ export function EventCard({
 
       {/* Status badge — outside aria-hidden so screen readers announce it */}
       <div className="absolute top-3 left-3 z-10">
-        <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-          style={{ color: statusCfg.color, backgroundColor: statusCfg.bg }}
-        >
-          {status === "live" && (
+        {isPreReg ? (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+            style={{
+              color: "#38BDF8",
+              backgroundColor: "rgba(56,189,248,0.12)",
+              borderColor: "rgba(56,189,248,0.3)",
+            }}
+          >
             <span
-              className="w-1.5 h-1.5 rounded-full animate-pulse-red"
-              style={{ backgroundColor: "#E11D2E" }}
+              className="w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ backgroundColor: "#38BDF8" }}
               aria-hidden="true"
             />
-          )}
-          {statusCfg.label}
-        </span>
+            Coming Soon · Pre-Reg Open
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+            style={{ color: statusCfg.color, backgroundColor: statusCfg.bg }}
+          >
+            {status === "live" && (
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-pulse-red"
+                style={{ backgroundColor: "#E11D2E" }}
+                aria-hidden="true"
+              />
+            )}
+            {statusCfg.label}
+          </span>
+        )}
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
@@ -113,7 +136,7 @@ export function EventCard({
         {subtitle && (
           <p
             className="font-mono text-xs uppercase tracking-widest"
-            style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
+            style={{ color: isPreReg ? "#38BDF8" : "#E11D2E", letterSpacing: "0.12em" }}
           >
             {subtitle}
           </p>
@@ -128,24 +151,23 @@ export function EventCard({
           {description}
         </p>
 
-        {/* Register button — the caller passes a href only when the event is
-            live and its registration form is open. */}
+        {/* Register button — active when registerHref is provided */}
         {registerHref ? (
           <MotionLink
             href={registerHref}
             className="mt-2 inline-flex items-center justify-center w-full py-2.5 px-4 rounded-lg text-sm font-medium border transition-all duration-[250ms]"
             style={{
-              borderColor: "rgba(225,29,46,0.4)",
+              borderColor: isPreReg ? "rgba(56,189,248,0.4)" : "rgba(225,29,46,0.4)",
               color: "#FFFFFF",
             }}
             whileHover={{
-              backgroundColor: "rgba(225,29,46,0.12)",
-              borderColor: "rgba(225,29,46,0.7)",
+              backgroundColor: isPreReg ? "rgba(56,189,248,0.12)" : "rgba(225,29,46,0.12)",
+              borderColor: isPreReg ? "rgba(56,189,248,0.7)" : "rgba(225,29,46,0.7)",
             }}
             whileTap={{ scale: 0.98 }}
-            aria-label={`Register for ${title}`}
+            aria-label={`${buttonLabel ?? (isPreReg ? "Pre-Register for" : "Register for")} ${title}`}
           >
-            Register →
+            {buttonLabel ?? (isPreReg ? "Pre-Register →" : "Register →")}
           </MotionLink>
         ) : status === "past" ? (
           <div
