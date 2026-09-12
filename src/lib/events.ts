@@ -5,6 +5,14 @@
 
 import type { Event, EventStatus } from "@prisma/client";
 
+/**
+ * The one event with its own custom registration form and interview-scoring
+ * workflow. Single source of truth — every place that needs to special-case
+ * this event (the register route, the register page, the score route)
+ * imports this instead of redeclaring the literal.
+ */
+export const VOLUNTEER_CALL_SLUG = "volunteer-call";
+
 /** How the site labels each status. */
 export const STATUS_LABEL: Record<EventStatus, string> = {
   live: "Live Now",

@@ -1,21 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Registration, RegistrationStatus } from "@prisma/client";
+import type { InterviewScore, Registration, RegistrationStatus } from "@prisma/client";
 import { skillLabel } from "@/lib/events";
+import {
+  isVolunteerFormData,
+  SKILL_RATING_CATEGORIES,
+} from "@/lib/validation/volunteer-registration";
+import { computeTotal } from "@/lib/validation/interview-score";
+import { InterviewScoreForm } from "./interview-score-form";
+
+type RegistrationRow = Registration & { interviewScore: InterviewScore | null };
 
 const STATUS_OPTIONS: RegistrationStatus[] = [
   "pending",
-  "confirmed",
-  "waitlisted",
+  "completed",
   "rejected",
+  "shortlisted",
 ];
 
 const STATUS_COLOR: Record<RegistrationStatus, string> = {
   pending: "#B3B3B3",
-  confirmed: "#4ADE80",
-  waitlisted: "#FBBF24",
+  completed: "#4ADE80",
   rejected: "#E11D2E",
+  shortlisted: "#FBBF24",
 };
 
 interface SubmissionsTableProps {
@@ -24,7 +32,7 @@ interface SubmissionsTableProps {
 }
 
 export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps) {
-  const [rows, setRows] = useState<Registration[]>([]);
+  const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [query, setQuery] = useState("");
@@ -96,6 +104,12 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
     }
   }
 
+  function applyScore(id: string, score: InterviewScore, status: RegistrationStatus) {
+    setRows((current) =>
+      current.map((r) => (r.id === id ? { ...r, interviewScore: score, status } : r))
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── Toolbar ────────────────────────────────────────────────────── */}
@@ -164,12 +178,14 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Hostel</th>
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Skills</th>
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Status</th>
+                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Score</th>
               </tr>
             </thead>
 
             <tbody>
               {rows.map((reg) => {
                 const open = expanded === reg.id;
+                const volunteerData = isVolunteerFormData(reg.formData) ? reg.formData : null;
 
                 return [
                   <tr
@@ -211,11 +227,17 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                       {reg.hostel}
                     </td>
                     <td className="px-4 py-3" style={{ color: "#B3B3B3" }}>
-                      {reg.skills.slice(0, 2).map(skillLabel).join(", ")}
-                      {reg.skills.length > 2 && (
-                        <span style={{ color: "#666666" }}>
-                          {" "}+{reg.skills.length - 2}
-                        </span>
+                      {volunteerData ? (
+                        <span>Faculty: {volunteerData.faculty}</span>
+                      ) : (
+                        <>
+                          {reg.skills.slice(0, 2).map(skillLabel).join(", ")}
+                          {reg.skills.length > 2 && (
+                            <span style={{ color: "#666666" }}>
+                              {" "}+{reg.skills.length - 2}
+                            </span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -238,11 +260,27 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                         ))}
                       </select>
                     </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const total = computeTotal(reg.interviewScore);
+                        return (
+                          <span
+                            className="font-mono text-xs px-2 py-1 rounded-full"
+                            style={{
+                              backgroundColor: total !== null ? "rgba(74,222,128,0.12)" : "transparent",
+                              color: total !== null ? "#4ADE80" : "#666666",
+                            }}
+                          >
+                            {total !== null ? `${total}/10` : "—"}
+                          </span>
+                        );
+                      })()}
+                    </td>
                   </tr>,
 
                   open && (
                     <tr key={`${reg.id}-detail`} style={{ backgroundColor: "#0F0F0F" }}>
-                      <td colSpan={7} className="px-4 py-5">
+                      <td colSpan={8} className="px-4 py-5">
                         <div className="flex flex-col gap-4">
                           {reg.isPreRegistration && (
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium border border-sky-500/30 bg-sky-500/10 text-sky-400 w-fit">
@@ -251,48 +289,121 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                             </div>
                           )}
 
-                          <div className="flex flex-col gap-1.5">
-                            <p
-                              className="font-mono text-xs uppercase tracking-widest"
-                              style={{ color: "#666666", letterSpacing: "0.12em" }}
-                            >
-                              All skills
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {reg.skills.map((s) => (
-                                <span
-                                  key={s}
-                                  className="px-2.5 py-1 rounded-full text-xs"
-                                  style={{
-                                    backgroundColor: "rgba(225,29,46,0.10)",
-                                    color: "#B3B3B3",
-                                  }}
-                                >
-                                  {skillLabel(s)}
-                                </span>
-                              ))}
-                            </div>
-                            {reg.otherSkill && (
-                              <p className="text-xs mt-1" style={{ color: "#B3B3B3" }}>
-                                Other: {reg.otherSkill}
+                          {volunteerData ? (
+                            <>
+                              <p
+                                className="font-mono text-xs uppercase tracking-widest"
+                                style={{ color: "#666666", letterSpacing: "0.12em" }}
+                              >
+                                Application
                               </p>
-                            )}
-                          </div>
 
-                          <div className="flex flex-col gap-1.5">
-                            <p
-                              className="font-mono text-xs uppercase tracking-widest"
-                              style={{ color: "#666666", letterSpacing: "0.12em" }}
-                            >
-                              What they know about NETRONiX
-                            </p>
-                            <p
-                              className="text-sm leading-relaxed whitespace-pre-wrap max-w-3xl"
-                              style={{ color: "#B3B3B3" }}
-                            >
-                              {reg.aboutNetronix}
-                            </p>
-                          </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {(
+                                  [
+                                    ["Weaknesses", volunteerData.weaknesses],
+                                    ["Strengths", volunteerData.strengths],
+                                    ["Why they applied", volunteerData.whyApply],
+                                    ["Greatest regret", volunteerData.regret],
+                                  ] as const
+                                ).map(([label, text]) => (
+                                  <div key={label} className="flex flex-col gap-1.5">
+                                    <p className="text-xs" style={{ color: "#888888" }}>
+                                      {label}
+                                    </p>
+                                    <p
+                                      className="text-sm leading-relaxed whitespace-pre-wrap"
+                                      style={{ color: "#B3B3B3" }}
+                                    >
+                                      {text}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex flex-col gap-1.5">
+                                <p className="text-xs" style={{ color: "#888888" }}>
+                                  Other society
+                                </p>
+                                <p className="text-sm" style={{ color: "#B3B3B3" }}>
+                                  {volunteerData.otherSociety
+                                    ? volunteerData.otherSocietyList || "Yes"
+                                    : "No"}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-1.5">
+                                <p className="text-xs" style={{ color: "#888888" }}>
+                                  Self-rated skills (1-5)
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {SKILL_RATING_CATEGORIES.map((cat) => (
+                                    <span
+                                      key={cat.key}
+                                      className="px-2.5 py-1 rounded-full text-xs"
+                                      style={{
+                                        backgroundColor: "rgba(225,29,46,0.10)",
+                                        color: "#B3B3B3",
+                                      }}
+                                    >
+                                      {cat.label}: {volunteerData.skillRatings[cat.key]}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <InterviewScoreForm
+                                registrationId={reg.id}
+                                score={reg.interviewScore}
+                                onSaved={(score, status) => applyScore(reg.id, score, status)}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex flex-col gap-1.5">
+                                <p
+                                  className="font-mono text-xs uppercase tracking-widest"
+                                  style={{ color: "#666666", letterSpacing: "0.12em" }}
+                                >
+                                  All skills
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {reg.skills.map((s) => (
+                                    <span
+                                      key={s}
+                                      className="px-2.5 py-1 rounded-full text-xs"
+                                      style={{
+                                        backgroundColor: "rgba(225,29,46,0.10)",
+                                        color: "#B3B3B3",
+                                      }}
+                                    >
+                                      {skillLabel(s)}
+                                    </span>
+                                  ))}
+                                </div>
+                                {reg.otherSkill && (
+                                  <p className="text-xs mt-1" style={{ color: "#B3B3B3" }}>
+                                    Other: {reg.otherSkill}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex flex-col gap-1.5">
+                                <p
+                                  className="font-mono text-xs uppercase tracking-widest"
+                                  style={{ color: "#666666", letterSpacing: "0.12em" }}
+                                >
+                                  What they know about NETRONiX
+                                </p>
+                                <p
+                                  className="text-sm leading-relaxed whitespace-pre-wrap max-w-3xl"
+                                  style={{ color: "#B3B3B3" }}
+                                >
+                                  {reg.aboutNetronix}
+                                </p>
+                              </div>
+                            </>
+                          )}
 
                           <p className="text-xs" style={{ color: "#666666" }}>
                             Submitted {new Date(reg.createdAt).toLocaleString()}

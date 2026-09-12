@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { effectiveStatus, isRegistrationOpen, isPreRegistration, STATUS_LABEL } from "@/lib/events";
+import {
+  effectiveStatus,
+  isRegistrationOpen,
+  isPreRegistration,
+  STATUS_LABEL,
+  VOLUNTEER_CALL_SLUG,
+} from "@/lib/events";
 import { RegistrationForm } from "@/components/forms/registration-form";
+import { VolunteerRegistrationForm } from "@/components/forms/volunteer-registration-form";
 import type { Event } from "@prisma/client";
 import { fetchEventBySlug } from "@/lib/events-data";
 
@@ -140,7 +147,11 @@ export default async function RegisterPage({
               </p>
             )}
 
-            <RegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            {event.slug === VOLUNTEER_CALL_SLUG ? (
+              <VolunteerRegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            ) : (
+              <RegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            )}
           </>
         ) : (
           <div
