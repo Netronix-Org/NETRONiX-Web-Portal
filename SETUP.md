@@ -150,7 +150,7 @@ event's rows. You can:
 
 - Search by name, registration number or email
 - Click a row to expand the full skills list and their NETRONiX answer
-- Set each submission to `pending` / `confirmed` / `waitlisted` / `rejected`
+- Set each submission to `pending` / `completed` / `rejected` / `shortlisted`
 - **Export CSV** — one file per event, ready for attendance sheets or mailing
 
 You can also read them straight in Supabase via the per-event views

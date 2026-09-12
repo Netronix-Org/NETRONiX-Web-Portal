@@ -26,7 +26,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type registration_status as enum ('pending', 'confirmed', 'waitlisted', 'rejected');
+  create type registration_status as enum ('pending', 'completed', 'rejected', 'shortlisted');
 exception when duplicate_object then null; end $$;
 
 -- ───────────────────────────────────────────────────────────────────────────
@@ -117,10 +117,11 @@ create table if not exists public.registrations (
   batch               smallint not null,
   email               text    not null,
   phone               text    not null,
-  hostel              text    not null,
-  about_netronix      text    not null,
+  hostel              text,
+  about_netronix      text,
   skills              text[]  not null default '{}',
   other_skill         text,
+  form_data           jsonb,
 
   -- ─── Admin / ops fields ─────────────────────────────────────────────────
   status              registration_status not null default 'pending',
@@ -146,6 +147,8 @@ comment on column public.registrations.skills is
   'Multi-select checkbox values, e.g. {networking,web-dev,graphic-design}.';
 comment on column public.registrations.email_sent_at is
   'Set when the confirmation email goes out. Reserved for the email step.';
+comment on column public.registrations.form_data is
+  'Event-specific answers that do not fit the shared columns (e.g. Volunteer Call''s Faculty, essay questions and skill ratings). NULL for events that only use the shared fields.';
 
 create index if not exists registrations_event_id_idx   on public.registrations (event_id, created_at desc);
 create index if not exists registrations_email_idx      on public.registrations (email);
@@ -200,6 +203,52 @@ create table if not exists public.admin_users (
 );
 
 -- ───────────────────────────────────────────────────────────────────────────
+-- 5a. INTERVIEW SCORES
+-- ───────────────────────────────────────────────────────────────────────────
+-- One shared scorecard per candidate (currently used for Volunteer Call).
+-- Any admin can view and update it — there is no per-panelist ownership, so
+-- the numbers reflect the panel's latest consensus. scored_by just tracks who
+-- last touched it. Every metric is 1-10; the total is computed in the app as
+-- the average of whichever metrics are set, not stored here.
+
+create table if not exists public.interview_scores (
+  id              uuid primary key default gen_random_uuid(),
+  registration_id uuid not null unique references public.registrations (id) on delete cascade,
+
+  remarks         text,
+
+  confidence      smallint,
+  communication   smallint,
+  personality     smallint,
+  attitude        smallint,
+  sponsorship     smallint,
+  gaming          smallint,
+  networking      smallint,
+  liason          smallint,
+  tech            smallint,
+  pub_creativity  smallint,
+
+  scored_by_id    text references public.admin_users (id) on delete set null,
+
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+
+  constraint interview_scores_confidence_range    check (confidence     is null or confidence     between 1 and 10),
+  constraint interview_scores_communication_range check (communication  is null or communication  between 1 and 10),
+  constraint interview_scores_personality_range   check (personality    is null or personality    between 1 and 10),
+  constraint interview_scores_attitude_range      check (attitude       is null or attitude       between 1 and 10),
+  constraint interview_scores_sponsorship_range   check (sponsorship    is null or sponsorship    between 1 and 10),
+  constraint interview_scores_gaming_range        check (gaming         is null or gaming         between 1 and 10),
+  constraint interview_scores_networking_range    check (networking     is null or networking     between 1 and 10),
+  constraint interview_scores_liason_range        check (liason         is null or liason         between 1 and 10),
+  constraint interview_scores_tech_range          check (tech           is null or tech           between 1 and 10),
+  constraint interview_scores_pub_creativity_range check (pub_creativity is null or pub_creativity between 1 and 10)
+);
+
+comment on table public.interview_scores is
+  'One shared panel scorecard per candidate. Metrics are 1-10; total is computed in the app.';
+
+-- ───────────────────────────────────────────────────────────────────────────
 -- 6. updated_at TRIGGER
 -- ───────────────────────────────────────────────────────────────────────────
 
@@ -216,6 +265,11 @@ $$;
 drop trigger if exists events_touch_updated_at on public.events;
 create trigger events_touch_updated_at
   before update on public.events
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists interview_scores_touch_updated_at on public.interview_scores;
+create trigger interview_scores_touch_updated_at
+  before update on public.interview_scores
   for each row execute function public.touch_updated_at();
 
 -- ───────────────────────────────────────────────────────────────────────────
@@ -301,7 +355,8 @@ begin
                 r.about_netronix,
                 r.status,
                 r.admin_notes,
-                r.id
+                r.id,
+                r.form_data
            from public.registrations r
            join public.events e on e.id = r.event_id
           where e.slug = %L
@@ -337,9 +392,10 @@ select public.rebuild_event_views();
 -- The admin portal talks to the database with the service_role key, server-side
 -- only, which bypasses RLS entirely.
 
-alter table public.events        enable row level security;
-alter table public.registrations enable row level security;
-alter table public.admin_users   enable row level security;
+alter table public.events           enable row level security;
+alter table public.registrations    enable row level security;
+alter table public.admin_users      enable row level security;
+alter table public.interview_scores enable row level security;
 
 -- ── events: public read only ───────────────────────────────────────────────
 drop policy if exists "events are publicly readable" on public.events;
@@ -359,6 +415,10 @@ create policy "anyone may register for a live event"
 -- private by default. Deliberate: do not add one.
 
 -- ── admin_users: no policy at all → completely sealed from the anon key ────
+
+-- ── interview_scores: no policy at all → sealed from the anon key ──────────
+-- Only readable/writable via the service_role key, server-side, same as
+-- admin_users. Panelists use existing admin logins to read and edit it.
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- 11. CREATE YOUR ADMIN LOGIN

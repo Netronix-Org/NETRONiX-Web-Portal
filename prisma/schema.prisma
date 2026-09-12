@@ -28,6 +28,7 @@ model AdminUser {
   assignedComplaints Complaint[]              @relation("AssignedComplaints")
   statusHistory      ComplaintStatusHistory[] @relation("AdminStatusChanges")
   registrationNotes  Registration[]           @relation("AdminNotes")
+  scoredInterviews   InterviewScore[]         @relation("ScoredInterviews")
 
   @@map("admin_users")
 }
@@ -44,9 +45,9 @@ enum EventStatus {
 
 enum RegistrationStatus {
   pending
-  confirmed
-  waitlisted
+  completed
   rejected
+  shortlisted
 
   @@map("registration_status")
 }
@@ -88,10 +89,14 @@ model Registration {
   batch              Int
   email              String
   phone              String
-  hostel             String
-  aboutNetronix      String             @map("about_netronix")
+  hostel             String?
+  aboutNetronix      String?            @map("about_netronix")
   skills             String[]
   otherSkill         String?            @map("other_skill")
+  // Event-specific answers that don't fit the shared columns above (e.g. the
+  // Volunteer Call form's Faculty / essay questions / skill ratings). Null for
+  // events that only use the shared fields.
+  formData           Json?              @map("form_data")
   status             RegistrationStatus @default(pending)
   adminNotes         String?            @map("admin_notes")
   adminId            String?            @map("admin_id")
@@ -101,11 +106,47 @@ model Registration {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
+  interviewScore     InterviewScore?
+
   @@unique([eventId, registrationNumber])
   @@index([eventId])
   @@index([status])
   @@index([createdAt])
   @@map("registrations")
+}
+
+// ─── Interview scoring ─────────────────────────────────────────────────────
+// A single shared scorecard per candidate, filled in by whichever panelist(s)
+// interview them. Any admin can view and update it — there is no per-panelist
+// ownership, so the numbers reflect the panel's latest consensus, not one
+// person's private notes. `scoredById` just tracks who last touched it.
+
+model InterviewScore {
+  id             String       @id @default(uuid())
+  registrationId String       @unique @map("registration_id")
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  remarks        String?
+
+  // Each metric is scored 1-10 by the panel. Null means "not yet scored".
+  confidence     Int?
+  communication  Int?
+  personality    Int?
+  attitude       Int?
+  sponsorship    Int?
+  gaming         Int?
+  networking     Int?
+  liason         Int?
+  tech           Int?
+  pubCreativity  Int?         @map("pub_creativity")
+
+  scoredById     String?      @map("scored_by_id")
+  scoredBy       AdminUser?   @relation("ScoredInterviews", fields: [scoredById], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("interview_scores")
 }
 
 // ─── Complaints ──────────────────────────────────────────────────────────────

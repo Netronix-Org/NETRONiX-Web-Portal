@@ -4,8 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { effectiveStatus, isRegistrationOpen, isPreRegistration, STATUS_LABEL } from "@/lib/events";
 import { RegistrationForm } from "@/components/forms/registration-form";
+import { VolunteerRegistrationForm } from "@/components/forms/volunteer-registration-form";
 import type { Event } from "@prisma/client";
 import { fetchEventBySlug } from "@/lib/events-data";
+
+const VOLUNTEER_CALL_SLUG = "volunteer-call";
 
 // Registration state depends on the clock and on admin edits, so never cache.
 export const dynamic = "force-dynamic";
@@ -140,7 +143,11 @@ export default async function RegisterPage({
               </p>
             )}
 
-            <RegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            {event.slug === VOLUNTEER_CALL_SLUG ? (
+              <VolunteerRegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            ) : (
+              <RegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} />
+            )}
           </>
         ) : (
           <div

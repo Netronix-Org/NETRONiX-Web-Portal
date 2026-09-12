@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip: page * PAGE_SIZE,
       take: PAGE_SIZE,
+      include: { interviewScore: true },
     }),
     prisma.registration.count({ where }),
   ]);
