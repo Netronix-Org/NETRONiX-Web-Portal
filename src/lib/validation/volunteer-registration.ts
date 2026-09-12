@@ -140,11 +140,14 @@ export interface VolunteerFormData {
 
 /** Narrow an unknown `Registration.formData` JSON value into the volunteer shape. */
 export function isVolunteerFormData(value: unknown): value is VolunteerFormData {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "faculty" in value &&
-    "skillRatings" in value
+  if (typeof value !== "object" || value === null) return false;
+  if (typeof (value as Record<string, unknown>).faculty !== "string") return false;
+
+  const skillRatings = (value as Record<string, unknown>).skillRatings;
+  if (typeof skillRatings !== "object" || skillRatings === null) return false;
+
+  return SKILL_RATING_CATEGORIES.every(
+    (c) => typeof (skillRatings as Record<string, unknown>)[c.key] === "number"
   );
 }
 

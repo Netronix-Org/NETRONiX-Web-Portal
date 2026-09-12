@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
-import { InterviewScorePatchSchema } from "@/lib/validation/interview-score";
+import { InterviewScorePatchSchema, SCORE_METRICS } from "@/lib/validation/interview-score";
+import { VOLUNTEER_CALL_SLUG } from "@/lib/events";
 
 /**
  * PATCH /api/admin/registrations/[id]/score
  *
  * Upserts the shared interview scorecard for one registration. Any admin may
  * call this — the scorecard has no per-panelist ownership, so this always
- * overwrites the whole thing with the caller's values.
+ * overwrites the whole thing with the caller's values. Scoped to events that
+ * actually run interviews (Volunteer Call today) so it can't be pointed at
+ * an arbitrary registration from a ticket-style event.
  */
 export async function PATCH(
   req: NextRequest,
@@ -20,6 +24,9 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ message: "Submission not found" }, { status: 404 });
+  }
 
   let body: unknown;
   try {
@@ -41,14 +48,25 @@ export async function PATCH(
 
   const registration = await prisma.registration.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, status: true, event: { select: { slug: true } } },
   });
 
   if (!registration) {
     return NextResponse.json({ message: "Submission not found" }, { status: 404 });
   }
 
+  if (registration.event.slug !== VOLUNTEER_CALL_SLUG) {
+    return NextResponse.json(
+      { message: "Interview scoring is not available for this event." },
+      { status: 400 }
+    );
+  }
+
   const data = parsed.data;
+
+  // Only count as "scored" once at least one metric has an actual value —
+  // an empty or remarks-only save shouldn't complete the interview on its own.
+  const hasAnyMetric = SCORE_METRICS.some((m) => data[m.key] !== null && data[m.key] !== undefined);
 
   try {
     const { score, status } = await prisma.$transaction(async (tx) => {
@@ -59,16 +77,25 @@ export async function PATCH(
       });
 
       // Scoring an interview moves it out of "pending" on its own. It never
-      // overrides a decision (shortlisted/rejected) an admin already made.
-      await tx.registration.updateMany({
-        where: { id, status: "pending" },
-        data: { status: "completed" },
-      });
+      // overrides a decision (shortlisted/rejected) an admin already made,
+      // and never fires for a blank/remarks-only save. The WHERE clause
+      // (not a value read beforehand) is what makes this race-safe: it's
+      // re-checked atomically by Postgres at write time.
+      let status = registration.status;
+      if (hasAnyMetric && registration.status === "pending") {
+        const { count } = await tx.registration.updateMany({
+          where: { id, status: "pending" },
+          data: { status: "completed" },
+        });
 
-      const { status } = await tx.registration.findUniqueOrThrow({
-        where: { id },
-        select: { status: true },
-      });
+        status =
+          count > 0
+            ? "completed"
+            : // Someone else changed the status between our read above and
+              // this write — re-read rather than report a stale value.
+              (await tx.registration.findUniqueOrThrow({ where: { id }, select: { status: true } }))
+                .status;
+      }
 
       return { score, status };
     });

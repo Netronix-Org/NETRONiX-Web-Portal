@@ -5,13 +5,8 @@ import {
   VolunteerRegistrationSchema,
   type VolunteerFormData,
 } from "@/lib/validation/volunteer-registration";
-import { isRegistrationOpen, isPreRegistration } from "@/lib/events";
+import { isRegistrationOpen, isPreRegistration, VOLUNTEER_CALL_SLUG } from "@/lib/events";
 import type { Event, Prisma } from "@prisma/client";
-
-// Volunteer Call uses its own field set (Faculty, essay questions, skill
-// ratings) instead of the shared registration form. See
-// src/lib/validation/volunteer-registration.ts.
-const VOLUNTEER_CALL_SLUG = "volunteer-call";
 
 type EventForRegistration = Pick<
   Event,

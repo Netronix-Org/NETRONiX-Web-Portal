@@ -8,18 +8,9 @@ import {
   type ScoreMetricKey,
   type ScoreMetrics,
 } from "@/lib/validation/interview-score";
+import { FIELD_BASE_COMPACT as FIELD_BASE, FIELD_STYLE } from "@/components/forms/field-primitives";
 
 const RATING_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-const FIELD_BASE =
-  "w-full rounded-lg border px-2.5 py-2 text-sm outline-none transition-colors " +
-  "focus:border-[rgba(225,29,46,0.6)]";
-
-const FIELD_STYLE = {
-  backgroundColor: "#0F0F0F",
-  borderColor: "rgba(255,255,255,0.1)",
-  color: "#FFFFFF",
-} as const;
 
 type EditableScore = ScoreMetrics & { remarks: string };
 

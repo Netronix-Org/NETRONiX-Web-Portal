@@ -10,54 +10,7 @@ import {
   type RegistrationInput,
 } from "@/lib/validation/registration";
 import { BATCH_OPTIONS, SKILL_GROUPS, SKILL_OPTIONS } from "@/lib/events";
-
-// ─── Shared field styling ────────────────────────────────────────────────────
-
-const FIELD_BASE =
-  "w-full rounded-lg border px-4 py-3 text-sm outline-none transition-colors " +
-  "placeholder:text-[#555555] focus:border-[rgba(225,29,46,0.6)]";
-
-const FIELD_STYLE = {
-  backgroundColor: "#0F0F0F",
-  borderColor: "rgba(255,255,255,0.1)",
-  color: "#FFFFFF",
-} as const;
-
-function Label({
-  htmlFor,
-  children,
-  hint,
-}: {
-  htmlFor: string;
-  children: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label
-        htmlFor={htmlFor}
-        className="font-mono text-xs uppercase tracking-widest"
-        style={{ color: "#B3B3B3", letterSpacing: "0.12em" }}
-      >
-        {children}
-      </label>
-      {hint && (
-        <span className="text-xs" style={{ color: "#666666" }}>
-          {hint}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="text-xs" style={{ color: "#E11D2E" }}>
-      {message}
-    </p>
-  );
-}
+import { FIELD_BASE, FIELD_STYLE, Label, FieldError } from "./field-primitives";
 
 // ─── Component ───────────────────────────────────────────────────────────────
 

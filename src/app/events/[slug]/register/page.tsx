@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { effectiveStatus, isRegistrationOpen, isPreRegistration, STATUS_LABEL } from "@/lib/events";
+import {
+  effectiveStatus,
+  isRegistrationOpen,
+  isPreRegistration,
+  STATUS_LABEL,
+  VOLUNTEER_CALL_SLUG,
+} from "@/lib/events";
 import { RegistrationForm } from "@/components/forms/registration-form";
 import { VolunteerRegistrationForm } from "@/components/forms/volunteer-registration-form";
 import type { Event } from "@prisma/client";
 import { fetchEventBySlug } from "@/lib/events-data";
-
-const VOLUNTEER_CALL_SLUG = "volunteer-call";
 
 // Registration state depends on the clock and on admin edits, so never cache.
 export const dynamic = "force-dynamic";
