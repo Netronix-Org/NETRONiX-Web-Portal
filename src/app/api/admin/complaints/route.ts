@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedAdmin } from "@/lib/auth";
-import { ComplaintStatus, IssueType, Prisma } from "@prisma/client";
+import { buildComplaintWhere } from "@/lib/complaint-filters";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,41 +15,10 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "15", 10)));
     const skip = (page - 1) * limit;
 
-    const query = searchParams.get("query")?.trim() || "";
-    const statusParam = searchParams.get("status")?.toUpperCase();
-    const issueTypeParam = searchParams.get("issueType")?.toUpperCase();
-    const assignedToIdParam = searchParams.get("assignedToId");
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-    // Build filter conditions
-    const where: Prisma.ComplaintWhereInput = {};
-
-    if (query) {
-      where.OR = [
-        { ticketId: { contains: query, mode: "insensitive" } },
-        { name: { contains: query, mode: "insensitive" } },
-        { email: { contains: query, mode: "insensitive" } },
-        { location: { contains: query, mode: "insensitive" } },
-        { description: { contains: query, mode: "insensitive" } },
-      ];
-    }
-
-    if (statusParam && Object.values(ComplaintStatus).includes(statusParam as ComplaintStatus)) {
-      where.status = statusParam as ComplaintStatus;
-    }
-
-    if (issueTypeParam && Object.values(IssueType).includes(issueTypeParam as IssueType)) {
-      where.issueType = issueTypeParam as IssueType;
-    }
-
-    if (assignedToIdParam) {
-      if (assignedToIdParam === "unassigned") {
-        where.assignedToId = null;
-      } else {
-        where.assignedToId = assignedToIdParam;
-      }
-    }
+    const where = buildComplaintWhere(searchParams);
 
     // Execute count and list query concurrently
     const [total, complaints] = await Promise.all([

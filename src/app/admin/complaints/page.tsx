@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Download,
   LogOut,
   RefreshCw,
   Search,
@@ -77,6 +78,16 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   RESOLVED: ["IN_PROGRESS"],
   REJECTED: ["REPORTED"],
 };
+
+/** The desk's active filters as a query-string, shared by the list fetch and the CSV export link. */
+function filterParams(query: string, status: string, issueType: string, assignedToId: string) {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (status) params.set("status", status);
+  if (issueType) params.set("issueType", issueType);
+  if (assignedToId) params.set("assignedToId", assignedToId);
+  return params;
+}
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -154,13 +165,9 @@ export default function AdminDashboardPage() {
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = filterParams(searchQuery, statusFilter, issueTypeFilter, assignedFilter);
       params.set("page", currentPage.toString());
       params.set("limit", "12");
-      if (searchQuery) params.set("query", searchQuery);
-      if (statusFilter) params.set("status", statusFilter);
-      if (issueTypeFilter) params.set("issueType", issueTypeFilter);
-      if (assignedFilter) params.set("assignedToId", assignedFilter);
 
       const res = await fetch(`/api/admin/complaints?${params.toString()}`);
       if (res.ok) {
@@ -349,6 +356,14 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <a
+              href={`/api/admin/complaints/export?${filterParams(searchQuery, statusFilter, issueTypeFilter, assignedFilter).toString()}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-mono font-medium border border-white/10 bg-[#141414] hover:bg-[#1A1A1A] transition-colors"
+              title="Download the complaints matching the current filters as CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </a>
             <button
               onClick={handleRefresh}
               disabled={refreshing}

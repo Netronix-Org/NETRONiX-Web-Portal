@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { csvCell } from "@/lib/csv";
 import { skillLabel } from "@/lib/events";
 import {
   isVolunteerFormData,
@@ -43,13 +44,6 @@ const COLUMNS = [
   "Status",
   "Admin Notes",
 ] as const;
-
-/** RFC 4180 escaping, plus a guard against spreadsheet formula injection. */
-function csvCell(value: unknown): string {
-  const raw = value === null || value === undefined ? "" : String(value);
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
 
 function toCsvRow(reg: RegistrationWithScore): string {
   const volunteerData = isVolunteerFormData(reg.formData) ? reg.formData : null;
