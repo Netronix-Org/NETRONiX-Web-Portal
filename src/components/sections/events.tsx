@@ -11,7 +11,7 @@ export async function Events() {
   const now = new Date();
 
   function card(event: EventRow) {
-    return <EventCard key={event.id} slug={event.slug} title={event.title} subtitle={event.subtitle || ""} description={event.description} status={effectiveStatus(event, now)} isPreReg={isPreRegistration(event, now)} imageSrc={event.imageSrc || ""} registerHref={isRegistrationOpen(event, now) ? registrationHref(event.slug) : undefined} />;
+    return <EventCard key={event.id} slug={event.slug} title={event.title} subtitle={event.slug === "snp" ? "" : event.subtitle || ""} description={event.description} status={effectiveStatus(event, now)} isPreReg={isPreRegistration(event, now)} imageSrc={event.imageSrc || ""} registerHref={isRegistrationOpen(event, now) ? registrationHref(event.slug) : undefined} />;
   }
 
   return (
