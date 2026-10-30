@@ -7,6 +7,7 @@ import type { Event, EventStatus } from "@prisma/client";
 import { EventControls } from "./event-controls";
 import { SubmissionsTable } from "./submissions-table";
 import { UsersManager } from "./users-manager";
+import { AmbassadorApplications } from "./ambassador-applications";
 import { Users, Calendar, Inbox, MessageSquare } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -17,7 +18,7 @@ interface AdminDashboardProps {
   statuses: Record<string, EventStatus>;
 }
 
-type Tab = "events" | "submissions" | "team";
+type Tab = "events" | "submissions" | "ambassadors" | "team";
 
 export function AdminDashboard({
   session,
@@ -124,6 +125,20 @@ export function AdminDashboard({
 
           {session.role === "ADMIN" && (
             <button
+              onClick={() => setTab("ambassadors")}
+              className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
+              style={{
+                backgroundColor: tab === "ambassadors" ? "rgba(225,29,46,0.15)" : "transparent",
+                color: tab === "ambassadors" ? "#FFFFFF" : "#888888",
+              }}
+            >
+              <Users className="w-3.5 h-3.5" />
+              Ambassadors
+            </button>
+          )}
+
+          {session.role === "ADMIN" && (
+            <button
               onClick={() => setTab("team")}
               className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               style={{
@@ -216,6 +231,7 @@ export function AdminDashboard({
               <SubmissionsTable
                 key={selectedEventId}
                 eventId={selectedEventId}
+                eventSlug={events.find((e) => e.id === selectedEventId)?.slug ?? ""}
                 eventTitle={
                   events.find((e) => e.id === selectedEventId)?.title ?? "Event"
                 }
@@ -227,6 +243,8 @@ export function AdminDashboard({
             )}
           </section>
         )}
+
+        {tab === "ambassadors" && session.role === "ADMIN" && <AmbassadorApplications />}
 
         {/* ── Team & Junior Accounts tab ──────────────────────────────────── */}
         {tab === "team" && session.role === "ADMIN" && (

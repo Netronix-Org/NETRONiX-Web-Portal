@@ -219,7 +219,7 @@ export function EventControls({
             View submissions
           </button>
 
-          {(shown === "live" || (shown === "coming_soon" && event.registrationOpen)) && (
+          {event.registrationOpen && (shown === "live" || shown === "coming_soon") && (
             <a
               href={registrationHref(event.slug)}
               target="_blank"
@@ -250,7 +250,10 @@ export function EventControls({
               <button
                 key={value}
                 disabled={busy}
-                onClick={() => save({ status: value }, `Status changed to ${STATUS_LABEL[value]}`)}
+                onClick={() => save(
+                  { status: value, ...(value === "live" ? { registrationOpen: true } : {}) },
+                  value === "live" ? "Event is live. Registrations are open." : `Status changed to ${STATUS_LABEL[value]}`
+                )}
                 className="py-2 px-4 rounded-lg text-xs font-mono font-medium border transition-colors disabled:opacity-50 hover:bg-white/[0.03] cursor-pointer"
                 style={{
                   backgroundColor: active

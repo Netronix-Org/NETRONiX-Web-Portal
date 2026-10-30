@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
-import { skillLabel } from "@/lib/events";
+import { csvCell } from "@/lib/csv";
+import { skillLabel, isHncOrUgx } from "@/lib/events";
 import {
   isVolunteerFormData,
   SKILL_RATING_CATEGORIES,
@@ -43,13 +44,6 @@ const COLUMNS = [
   "Status",
   "Admin Notes",
 ] as const;
-
-/** RFC 4180 escaping, plus a guard against spreadsheet formula injection. */
-function csvCell(value: unknown): string {
-  const raw = value === null || value === undefined ? "" : String(value);
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
 
 function toCsvRow(reg: RegistrationWithScore): string {
   const volunteerData = isVolunteerFormData(reg.formData) ? reg.formData : null;
@@ -114,7 +108,12 @@ export async function GET(req: NextRequest) {
     include: { interviewScore: true },
   });
 
-  const csv = [COLUMNS.map(csvCell).join(","), ...registrations.map(toCsvRow)].join("\r\n");
+  const csv = isHncOrUgx(event.slug)
+    ? [
+        ["Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "University", "Status", "Admin Notes"].map(csvCell).join(","),
+        ...registrations.map((reg) => [reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular", reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, reg.ambassador, reg.university, reg.status, reg.adminNotes].map(csvCell).join(",")),
+      ].join("\r\n")
+    : [COLUMNS.map(csvCell).join(","), ...registrations.map(toCsvRow)].join("\r\n");
 
   // BOM so Excel opens UTF-8 names correctly.
   const filename = `netronix-${event.slug}-registrations.csv`;

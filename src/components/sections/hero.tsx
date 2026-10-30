@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { heroRevealVariant, staggerContainerVariant, DURATION, EASE } from "@/lib/motion";
 import { uiSounds } from "@/lib/audio";
+import Link from "next/link";
+import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
 
 // Use Lenis if available, fall back to native smooth scroll
 function scrollTo(id: string) {
@@ -16,7 +18,7 @@ function scrollTo(id: string) {
   else el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-export function Hero() {
+export function Hero({ ambassadorCallOpen = false }: { ambassadorCallOpen?: boolean }) {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const [videoReady, setVideoReady] = useState(false);
 
@@ -111,6 +113,14 @@ export function Hero() {
               The digital backbone of GIKI&apos;s technical infrastructure and gaming community.
             We build the systems that connect, and the experiences that unite.
             </motion.p>
+
+            {ambassadorCallOpen && (
+              <motion.div variants={heroRevealVariant} className="mb-7">
+                <Link href="/ambassadors" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#60A5FA]/40 bg-[#071326]/90 px-4 py-2 text-center text-xs font-medium text-[#BFDBFE] transition-colors hover:border-[#60A5FA] sm:text-sm">
+                  HNC &amp; UGX · {AMBASSADOR_CAMPAIGN.dates} · Ambassador call open →
+                </Link>
+              </motion.div>
+            )}
 
             {/* CTAs */}
             <motion.div

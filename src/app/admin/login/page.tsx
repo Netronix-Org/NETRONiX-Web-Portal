@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/admin/login-form";
+import { BrandLogo } from "@/components/ui/brand-logo";
 
 export const metadata: Metadata = {
   title: "Admin Login — NETRONiX",
@@ -17,12 +18,7 @@ export default function AdminLoginPage() {
     >
       <div className="w-full max-w-sm flex flex-col gap-8">
         <div className="flex flex-col gap-2 text-center">
-          <p
-            className="font-mono text-xs uppercase tracking-widest"
-            style={{ color: "#E11D2E", letterSpacing: "0.12em" }}
-          >
-            NETRONiX
-          </p>
+          <BrandLogo name="netronix" className="mx-auto mb-3 w-40" />
           <h1
             className="font-heading font-semibold"
             style={{ fontSize: "clamp(1.75rem, 4vw, 2.25rem)", letterSpacing: "-0.03em" }}

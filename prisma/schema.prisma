@@ -85,10 +85,14 @@ model Registration {
   eventId            String             @map("event_id")
   event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   fullName           String             @map("full_name")
-  registrationNumber String             @map("registration_number")
-  batch              Int
+  registrationNumber String?            @map("registration_number")
+  batch              Int?
   email              String
   phone              String
+  cnic               String?
+  city               String?
+  ambassador         String?
+  university         String?
   hostel             String?
   aboutNetronix      String?            @map("about_netronix")
   skills             String[]
@@ -109,6 +113,7 @@ model Registration {
   interviewScore     InterviewScore?
 
   @@unique([eventId, registrationNumber])
+  @@unique([eventId, cnic])
   @@index([eventId])
   @@index([status])
   @@index([createdAt])
@@ -147,6 +152,24 @@ model InterviewScore {
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
   @@map("interview_scores")
+}
+
+// ─── Ambassador applications ─────────────────────────────────────────────────
+
+model AmbassadorApplication {
+  id               String   @id @default(uuid())
+  campaign         String
+  fullName         String   @map("full_name")
+  cnic             String
+  phone            String
+  email            String?
+  university       String
+  participantCount Int      @map("participant_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([campaign, cnic])
+  @@index([campaign, createdAt])
+  @@map("ambassador_applications")
 }
 
 // ─── Complaints ──────────────────────────────────────────────────────────────

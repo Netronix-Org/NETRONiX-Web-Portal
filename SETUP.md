@@ -1,5 +1,60 @@
 # NETRONiX — Backend & Admin Portal Setup
 
+## HNC & UGX ambassador call (December 2026)
+
+The public call is at `/ambassadors`, linked from the homepage hero, navigation,
+and ambassador section. It covers both events on **11–13 December 2026** and
+collects name, CNIC, phone, email, university, and expected participant count. Applications
+are separate from event participant registrations.
+
+This feature uses the current Prisma/PostgreSQL connection (`DATABASE_URL`),
+plus the existing admin session configuration. Add its private table once:
+
+```bash
+pnpm exec prisma db execute --file supabase/ambassador-applications.sql
+pnpm exec prisma db execute --file supabase/event-registration-fields.sql
+pnpm exec prisma generate
+```
+
+The SQL is additive and safe to re-run. It enables RLS and denies the Supabase
+public roles access. Executive admins can view and export applications under
+**Admin Portal → Ambassadors**; junior coordinator accounts cannot access CNICs.
+CNICs are normalized to 13 digits and unique within this call. Campaign details
+and the closing time (after 13 December, Pakistan time) live in
+`src/lib/ambassadors.ts`.
+
+HNC (`/events/hack-n-connect/register`) and UGX (`/events/ugx/register`) use a
+participant form requiring **name, phone, email, CNIC and city**, plus optional
+**ambassador** (the referring ambassador's name) and **university**. The schema
+update adds those columns and permits missing recruitment-only registration
+numbers and batches; existing data is preserved. CNIC is normalized and unique
+per event. Other event and volunteer forms keep their existing requirements.
+Existing event opening/closing settings still control access to the forms.
+Selecting **Live Now** also enables **Accept new registrations**. The checkbox
+can then pause registration independently while the event stays live; public
+pages label that state **Registrations paused**.
+The event submissions table and event-specific CSV export include these fields.
+Ambassador email is required for new applications; older records may have no
+email and are shown with a dash in the admin table.
+
+Verification:
+
+```bash
+pnpm exec tsx --test src/lib/validation/ambassador.test.ts src/lib/validation/event-registration.test.ts
+node --import tsx --import ./scripts/register-css-test-loader.mjs --test src/components/forms/event-registration-form.test.tsx
+pnpm typecheck
+pnpm lint
+pnpm build
+# With the local app running; creates and removes one synthetic fixture:
+pnpm exec tsx scripts/verify-ambassadors.ts
+# Isolated handler fixtures are fully rolled back; real events remain closed/open as configured:
+node --import tsx scripts/verify-event-registrations.mjs
+```
+
+The older Supabase REST setup below predates the current Prisma connection.
+
+---
+
 Everything below is a one-time setup. Budget about 15 minutes.
 
 ---

@@ -8,9 +8,11 @@ import {
   isPreRegistration,
   STATUS_LABEL,
   VOLUNTEER_CALL_SLUG,
+  isHncOrUgx,
 } from "@/lib/events";
 import { RegistrationForm } from "@/components/forms/registration-form";
 import { VolunteerRegistrationForm } from "@/components/forms/volunteer-registration-form";
+import { EventRegistrationPage } from "@/components/forms/event-registration-page";
 import type { Event } from "@prisma/client";
 import { fetchEventBySlug } from "@/lib/events-data";
 
@@ -50,6 +52,8 @@ export default async function RegisterPage({
   const event = await getEvent(slug);
 
   if (!event) notFound();
+
+  if (isHncOrUgx(event.slug)) return <EventRegistrationPage event={event} />;
 
   const status = effectiveStatus(event);
   const open = isRegistrationOpen(event);
@@ -171,13 +175,15 @@ export default async function RegisterPage({
             <h2 className="font-heading font-semibold text-xl">
               {status === "past"
                 ? "This event has concluded"
-                : "Registration is not open yet"}
+                : status === "live" ? "Registration is currently paused" : "Registration is not open yet"}
             </h2>
 
             <p className="text-sm leading-relaxed" style={{ color: "#B3B3B3" }}>
               {status === "past"
                 ? "Thanks to everyone who took part. Keep an eye on the events page for what comes next."
-                : "This event goes live soon. Check back on the events page, or follow NETRONiX for the announcement."}
+                : status === "live"
+                  ? "This event is live, but new registrations are temporarily paused. Check back here for updates."
+                  : "Registration is not open yet. Check back on the events page, or follow NETRONiX for the announcement."}
             </p>
 
             <Link

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { InterviewScore, Registration, RegistrationStatus } from "@prisma/client";
-import { skillLabel } from "@/lib/events";
+import { skillLabel, isHncOrUgx } from "@/lib/events";
 import {
   isVolunteerFormData,
   SKILL_RATING_CATEGORIES,
@@ -28,10 +28,12 @@ const STATUS_COLOR: Record<RegistrationStatus, string> = {
 
 interface SubmissionsTableProps {
   eventId: string;
+  eventSlug: string;
   eventTitle: string;
 }
 
-export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps) {
+export function SubmissionsTable({ eventId, eventTitle, eventSlug }: SubmissionsTableProps) {
+  const participantEvent = isHncOrUgx(eventSlug);
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -121,7 +123,7 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
             setPage(0);
             setQuery(e.target.value);
           }}
-          placeholder="Search name, reg number or email"
+          placeholder={participantEvent ? "Search name, CNIC or email" : "Search name, reg number or email"}
           className="rounded-lg border px-4 py-2.5 text-sm outline-none w-full sm:w-80 placeholder:text-[#555555]"
           style={{
             backgroundColor: "#0F0F0F",
@@ -172,13 +174,13 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                 style={{ color: "#666666", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
               >
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Name</th>
-                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Reg #</th>
-                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Batch</th>
+                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">{participantEvent ? "CNIC" : "Reg #"}</th>
+                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">{participantEvent ? "City" : "Batch"}</th>
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Contact</th>
-                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Hostel</th>
-                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Skills</th>
+                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">{participantEvent ? "University" : "Hostel"}</th>
+                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">{participantEvent ? "Ambassador" : "Skills"}</th>
                 <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Status</th>
-                <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Score</th>
+                {!participantEvent && <th className="font-mono text-xs uppercase tracking-widest px-4 py-3 font-normal">Score</th>}
               </tr>
             </thead>
 
@@ -212,10 +214,10 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs" style={{ color: "#B3B3B3" }}>
-                      {reg.registrationNumber}
+                      {(participantEvent ? reg.cnic : reg.registrationNumber) || "—"}
                     </td>
                     <td className="px-4 py-3" style={{ color: "#B3B3B3" }}>
-                      {reg.batch}
+                      {(participantEvent ? reg.city : reg.batch) ?? "—"}
                     </td>
                     <td className="px-4 py-3" style={{ color: "#B3B3B3" }}>
                       <span className="block">{reg.email}</span>
@@ -224,10 +226,10 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                       </span>
                     </td>
                     <td className="px-4 py-3" style={{ color: "#B3B3B3" }}>
-                      {reg.hostel}
+                      {(participantEvent ? reg.university : reg.hostel) || "—"}
                     </td>
                     <td className="px-4 py-3" style={{ color: "#B3B3B3" }}>
-                      {volunteerData ? (
+                      {participantEvent ? (reg.ambassador || "—") : volunteerData ? (
                         <span>Faculty: {volunteerData.faculty}</span>
                       ) : (
                         <>
@@ -260,7 +262,7 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
+                    {!participantEvent && <td className="px-4 py-3">
                       {(() => {
                         const total = computeTotal(reg.interviewScore);
                         return (
@@ -275,12 +277,12 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                           </span>
                         );
                       })()}
-                    </td>
+                    </td>}
                   </tr>,
 
                   open && (
                     <tr key={`${reg.id}-detail`} style={{ backgroundColor: "#0F0F0F" }}>
-                      <td colSpan={8} className="px-4 py-5">
+                      <td colSpan={participantEvent ? 7 : 8} className="px-4 py-5">
                         <div className="flex flex-col gap-4">
                           {reg.isPreRegistration && (
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium border border-sky-500/30 bg-sky-500/10 text-sky-400 w-fit">
@@ -289,7 +291,13 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
                             </div>
                           )}
 
-                          {volunteerData ? (
+                          {participantEvent ? (
+                            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                              {[["Name", reg.fullName], ["Phone", reg.phone], ["Email", reg.email], ["CNIC", reg.cnic], ["City", reg.city], ["Ambassador", reg.ambassador], ["University", reg.university]].map(([label, value]) => (
+                                <div key={label}><dt className="text-xs text-[#999999]">{label}</dt><dd className="mt-1 break-words text-sm text-[#D4D4D4]">{value || "—"}</dd></div>
+                              ))}
+                            </dl>
+                          ) : volunteerData ? (
                             <>
                               <p
                                 className="font-mono text-xs uppercase tracking-widest"
