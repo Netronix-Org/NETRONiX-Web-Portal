@@ -6,11 +6,13 @@ import { Menu, X } from "lucide-react";
 import { DURATION, EASE } from "@/lib/motion";
 import { SpotlightNavbar } from "@/components/ui/spotlight-navbar";
 import { uiSounds } from "@/lib/audio";
+import { BrandLogo } from "@/components/ui/brand-logo";
 
 // ─── Nav links ────────────────────────────────────────────────────────────────
 const NAV_LINKS = [
   { label: "About",     href: "#about" },
   { label: "Events",    href: "#events" },
+  { label: "Ambassadors", href: "#ambassadors" },
   { label: "Portal",    href: "#portal" },
   { label: "Community", href: "#community" },
 ] as const;
@@ -32,7 +34,7 @@ export function Nav() {
 
   // Track active section via IntersectionObserver
   useEffect(() => {
-    const sections = ["about", "events", "portal", "community"];
+    const sections = ["about", "events", "ambassadors", "portal", "community"];
     const observers: IntersectionObserver[] = [];
 
     sections.forEach((id) => {
@@ -133,7 +135,7 @@ export function Nav() {
               className="font-heading font-semibold text-sm tracking-tight text-white shrink-0 hover:opacity-80 transition-opacity"
               style={{ letterSpacing: "-0.02em" }}
             >
-              NETRONiX
+              <BrandLogo name="netronix" className="w-28" />
             </a>
           }
           rightContent={
@@ -181,7 +183,7 @@ export function Nav() {
           className="font-heading font-semibold text-sm text-white"
           style={{ letterSpacing: "-0.02em" }}
         >
-          NETRONiX
+          <BrandLogo name="netronix" className="w-28" />
         </span>
         <motion.button
           ref={menuButtonRef}

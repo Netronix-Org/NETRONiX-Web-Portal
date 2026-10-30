@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { RegistrationSchema } from "@/lib/validation/registration";
+import { EventRegistrationSchema } from "@/lib/validation/event-registration";
 import {
   VolunteerRegistrationSchema,
   type VolunteerFormData,
 } from "@/lib/validation/volunteer-registration";
-import { isRegistrationOpen, isPreRegistration, VOLUNTEER_CALL_SLUG } from "@/lib/events";
+import { isRegistrationOpen, isPreRegistration, VOLUNTEER_CALL_SLUG, isHncOrUgx } from "@/lib/events";
 import type { Event, Prisma } from "@prisma/client";
 
 type EventForRegistration = Pick<
@@ -99,6 +100,37 @@ export async function POST(
     body = await req.json();
   } catch {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
+  }
+
+  if (isHncOrUgx(slug)) {
+    const parsed = EventRegistrationSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ message: "Please check the highlighted fields.", errors: parsed.error.flatten().fieldErrors }, { status: 400 });
+    }
+    const resolved = await resolveOpenEvent(slug);
+    if ("error" in resolved) return resolved.error;
+    const { event } = resolved;
+    const isPreReg = isPreRegistration(event);
+    try {
+      const inserted = await prisma.registration.create({
+        data: {
+          ...parsed.data,
+          ambassador: parsed.data.ambassador || null,
+          university: parsed.data.university || null,
+          eventId: event.id,
+          skills: [],
+          isPreRegistration: isPreReg,
+        },
+        select: { id: true, createdAt: true, isPreRegistration: true },
+      });
+      return NextResponse.json({ id: inserted.id, submittedAt: inserted.createdAt, isPreRegistration: isPreReg, message: `Your ${isPreReg ? "pre-registration" : "registration"} for ${event.title} has been received.` }, { status: 201 });
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        return NextResponse.json({ message: "You have already registered for this event with that CNIC." }, { status: 409 });
+      }
+      // Avoid logging registration payloads containing CNICs.
+      return NextResponse.json({ message: "Couldn't save your registration. Please try again." }, { status: 503 });
+    }
   }
 
   if (slug === VOLUNTEER_CALL_SLUG) {

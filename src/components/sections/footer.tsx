@@ -2,6 +2,7 @@
 
 import { SectionWrapper, SectionItem } from "@/components/ui/section-wrapper";
 import { NetworkLines } from "@/components/ui/network-lines";
+import { BrandLogo } from "@/components/ui/brand-logo";
 
 // Use Lenis if available, fall back to native smooth scroll
 function scrollTo(id: string) {
@@ -90,12 +91,7 @@ export function Footer() {
                   <div className="relative z-10">
                     {/* Logo / wordmark */}
                     <div className="mb-6">
-                      <span
-                        className="font-heading font-bold text-xl tracking-tight"
-                        style={{ letterSpacing: "-0.03em" }}
-                      >
-                        NETRONiX
-                      </span>
+                      <BrandLogo name="netronix" className="w-40" />
                     </div>
 
                     <p
@@ -218,18 +214,9 @@ export function Footer() {
             style={{ height: "100%" }}
             aria-hidden="true"
           >
-            <span
-              className="font-heading font-bold block text-center leading-none"
-              style={{
-                fontSize:      "clamp(5rem, 16vw, 20rem)",
-                color:         "#FFFFFF",
-                opacity:       0.06,
-                letterSpacing: "-0.02em",
-                transform:     "translateY(28%)",
-              }}
-            >
-              NETRONiX
-            </span>
+            <div className="w-[92%] translate-y-[28%] opacity-[0.06]">
+              <BrandLogo name="netronix" className="w-full" />
+            </div>
           </div>
 
         </SectionWrapper>

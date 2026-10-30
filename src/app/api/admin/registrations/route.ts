@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
             { fullName: { contains: query, mode: "insensitive" as const } },
             { registrationNumber: { contains: query, mode: "insensitive" as const } },
             { email: { contains: query, mode: "insensitive" as const } },
+            { cnic: { contains: query.replace(/-/g, "") || query, mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     prisma.registration.count({ where }),
   ]);
 
-  return NextResponse.json({ registrations, total, page, pageSize: PAGE_SIZE });
+  return NextResponse.json({ registrations, total, page, pageSize: PAGE_SIZE }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 const PatchSchema = z.object({

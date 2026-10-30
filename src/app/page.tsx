@@ -3,12 +3,14 @@ import { Hero } from "@/components/sections/hero";
 import { CinematicBridge } from "@/components/sections/cinematic-bridge";
 import { About } from "@/components/sections/about";
 import { Events } from "@/components/sections/events";
+import { AmbassadorCall } from "@/components/sections/ambassador-call";
 import { ComplaintPortal } from "@/components/sections/complaint-portal";
 import { Community } from "@/components/sections/community";
 import { Join } from "@/components/sections/join";
 import { Footer } from "@/components/sections/footer";
 import { ScrollRevealSection } from "@/components/ui/scroll-reveal-section";
 import { NeuralNoise } from "@/components/ui/neural-noise";
+import { isAmbassadorCallOpen } from "@/lib/ambassadors";
 
 // Events are read from Supabase per request, so an admin flipping an event to
 // Live Now shows up on the next page load rather than at the next deploy.
@@ -23,7 +25,7 @@ export default function HomePage() {
       {/* ── Main narrative flow ─────────────────────────────────────────── */}
       <main id="main-content">
         {/* 1. Network Awakens — no reveal wrapper (it's the entry point) */}
-        <Hero />
+        <Hero ambassadorCallOpen={isAmbassadorCallOpen()} />
 
         {/* 2. Cinematic Bridge — Signal travels → NETRONiX logo reveals */}
         <CinematicBridge />
@@ -32,6 +34,8 @@ export default function HomePage() {
         <ScrollRevealSection amount={0.05} distance={50}>
           <About />
         </ScrollRevealSection>
+
+        <AmbassadorCall />
 
         {/* 4. Events */}
         <ScrollRevealSection amount={0.06} distance={60}>

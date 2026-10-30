@@ -13,6 +13,11 @@ import type { Event, EventStatus } from "@prisma/client";
  */
 export const VOLUNTEER_CALL_SLUG = "volunteer-call";
 
+/** These events use the public participant form rather than recruitment fields. */
+export function isHncOrUgx(slug: string): boolean {
+  return slug === "hack-n-connect" || slug === "ugx";
+}
+
 /** How the site labels each status. */
 export const STATUS_LABEL: Record<EventStatus, string> = {
   live: "Live Now",
