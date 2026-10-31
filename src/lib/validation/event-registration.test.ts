@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EventRegistrationSchema } from "./event-registration";
+import { EventRegistrationSchema, getEventRegistrationSchema, getUgxGame, UGX_GAMES } from "./event-registration";
 import { RegistrationSchema } from "./registration";
 import { VolunteerRegistrationSchema } from "./volunteer-registration";
 import { isHncOrUgx } from "../events";
@@ -13,7 +13,7 @@ const required = {
   city: " Islamabad ",
 };
 
-test("HNC and UGX accept just the five required fields", () => {
+test("shared contact fields are normalized", () => {
   const data = EventRegistrationSchema.parse(required);
   assert.equal(data.email, "sample@example.com");
   assert.equal(data.phone, "03001234567");
@@ -21,6 +21,24 @@ test("HNC and UGX accept just the five required fields", () => {
   assert.equal(data.city, "Islamabad");
   assert.equal(data.ambassador, undefined);
   assert.equal(data.university, undefined);
+});
+
+test("UGX requires one of the two games; HNC does not require a game", () => {
+  const ugx = getEventRegistrationSchema("ugx");
+  const empty = ugx.safeParse({});
+  assert.equal(empty.success, false);
+  if (!empty.success) assert.ok(empty.error.flatten().fieldErrors.game);
+  assert.equal(getEventRegistrationSchema("hack-n-connect").safeParse(required).success, true);
+  for (const game of UGX_GAMES) {
+    assert.equal(ugx.parse({ ...required, game }).game, game);
+    assert.equal(getUgxGame({ game }), game);
+  }
+  for (const game of [undefined, "", "Other", ["FC26", "Tekken 8"]]) {
+    const result = ugx.safeParse({ ...required, game });
+    assert.equal(result.success, false);
+    if (!result.success) assert.ok(result.error.flatten().fieldErrors.game);
+  }
+  for (const formData of [null, {}, { game: "Other" }]) assert.equal(getUgxGame(formData), null);
 });
 
 test("ambassador and university can be omitted, blank or supplied", () => {

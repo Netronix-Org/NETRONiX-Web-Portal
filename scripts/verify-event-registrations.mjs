@@ -23,9 +23,12 @@ async function main() {
         try {
           const missing = await post({});
           assert.equal(missing.status, 400);
-          assert.deepEqual(Object.keys((await missing.json()).errors).sort(), ["city", "cnic", "email", "fullName", "phone"]);
+          assert.deepEqual(Object.keys((await missing.json()).errors).sort(), ["city", "cnic", "email", "fullName", "phone", ...(slug === "ugx" ? ["game"] : [])].sort());
 
-          const body = { fullName: "Synthetic Participant", phone: "+92 (000) 000-0000", email: " TEST@Example.COM ", cnic: "00000-0000000-0", city: " Test City " };
+          const body = { fullName: "Synthetic Participant", phone: "+92 (000) 000-0000", email: " TEST@Example.COM ", cnic: "00000-0000000-0", city: " Test City ", ...(slug === "ugx" ? { game: "FC26" } : {}) };
+          if (slug === "ugx") {
+            for (const game of [undefined, "", "Other"]) assert.equal((await post({ ...body, game })).status, 400);
+          }
           const response = await post(body);
           assert.equal(response.status, 201);
           const result = await response.json();
@@ -35,16 +38,18 @@ async function main() {
           assert.equal(saved.email, "test@example.com");
           assert.equal(saved.phone, "+920000000000");
           assert.equal(saved.city, "Test City");
+          assert.deepEqual(saved.formData, slug === "ugx" ? { game: "FC26" } : null);
           for (const field of ["registrationNumber", "batch", "ambassador", "university"]) assert.equal(saved[field], null);
           await tx.$executeRawUnsafe("SAVEPOINT duplicate_check");
           assert.equal((await post({ ...body, cnic: "0000000000000" })).status, 409);
           await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT duplicate_check");
 
-          const withOptionals = await post({ ...body, cnic: "0000000000001", ambassador: " Test Ambassador ", university: " Test University " });
+          const withOptionals = await post({ ...body, cnic: "0000000000001", ambassador: " Test Ambassador ", university: " Test University ", ...(slug === "ugx" ? { game: "Tekken 8" } : {}) });
           assert.equal(withOptionals.status, 201);
           const extra = await tx.registration.findUniqueOrThrow({ where: { id: (await withOptionals.json()).id } });
           assert.equal(extra.ambassador, "Test Ambassador");
           assert.equal(extra.university, "Test University");
+          assert.deepEqual(extra.formData, slug === "ugx" ? { game: "Tekken 8" } : null);
 
           event.registrationOpen = false;
           assert.equal((await post({ ...body, cnic: "0000000000002" })).status, 409);
@@ -59,7 +64,7 @@ async function main() {
   } catch (error) {
     if (error !== rollback) throw error;
   }
-  console.log("PASS: both event handlers validate all five required fields, save normalized data, accept optional fields, reject duplicate CNICs, and honor closed registration. All fixtures rolled back.");
+  console.log("PASS: both event handlers validate contact fields, save normalized data, accept optional fields, reject duplicate CNICs, and honor closed registration. UGX requires a valid game and saves both FC26 and Tekken 8. All fixtures rolled back.");
 }
 
 main().catch((error) => {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { csvCell } from "@/lib/csv";
 import { skillLabel, isHncOrUgx } from "@/lib/events";
+import { getUgxGame } from "@/lib/validation/event-registration";
 import {
   isVolunteerFormData,
   SKILL_RATING_CATEGORIES,
@@ -110,8 +111,8 @@ export async function GET(req: NextRequest) {
 
   const csv = isHncOrUgx(event.slug)
     ? [
-        ["Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "University", "Status", "Admin Notes"].map(csvCell).join(","),
-        ...registrations.map((reg) => [reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular", reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, reg.ambassador, reg.university, reg.status, reg.adminNotes].map(csvCell).join(",")),
+        ["Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "University", ...(event.slug === "ugx" ? ["Game"] : []), "Status", "Admin Notes"].map(csvCell).join(","),
+        ...registrations.map((reg) => [reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular", reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, reg.ambassador, reg.university, ...(event.slug === "ugx" ? [getUgxGame(reg.formData)] : []), reg.status, reg.adminNotes].map(csvCell).join(",")),
       ].join("\r\n")
     : [COLUMNS.map(csvCell).join(","), ...registrations.map(toCsvRow)].join("\r\n");
 

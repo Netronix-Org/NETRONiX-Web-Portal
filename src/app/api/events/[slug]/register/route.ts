@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { RegistrationSchema } from "@/lib/validation/registration";
-import { EventRegistrationSchema } from "@/lib/validation/event-registration";
+import { getEventRegistrationSchema } from "@/lib/validation/event-registration";
 import {
   VolunteerRegistrationSchema,
   type VolunteerFormData,
@@ -103,7 +103,7 @@ export async function POST(
   }
 
   if (isHncOrUgx(slug)) {
-    const parsed = EventRegistrationSchema.safeParse(body);
+    const parsed = getEventRegistrationSchema(slug).safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ message: "Please check the highlighted fields.", errors: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
@@ -111,10 +111,12 @@ export async function POST(
     if ("error" in resolved) return resolved.error;
     const { event } = resolved;
     const isPreReg = isPreRegistration(event);
+    const { game, ...participant } = parsed.data;
     try {
       const inserted = await prisma.registration.create({
         data: {
-          ...parsed.data,
+          ...participant,
+          ...(slug === "ugx" && game ? { formData: { game } } : {}),
           ambassador: parsed.data.ambassador || null,
           university: parsed.data.university || null,
           eventId: event.id,
