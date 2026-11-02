@@ -20,10 +20,36 @@ HNC and UGX require **full name, phone, email, CNIC and city**, with optional **
 
 UGX additionally requires a single **Game** choice: **FC26** or **Tekken 8**. Client and server validation reject missing or unsupported games. The choice is saved in the existing `Registration.formData.game` JSON field, appears in expanded admin details and has its own Game column in UGX CSV exports. Older registrations without a game remain readable; no database migration is required.
 
+Both events require an explicit **Yes / No** answer to **Would you like to avail transport?**, with no answer selected by default. At the bottom of both forms: **For now, transport is available from Islamabad, Peshawar and Haripur only.** This is an availability notice; it does not restrict the participant's home city or promise a pickup booking. The choice is saved as `Registration.formData.transport` (`yes` or `no`), included in the confirmation email and shown in expanded admin details and CSV exports. Historic registrations without an answer display no preference, rather than being treated as No. No database migration is required.
+
 - Existing status, scheduling and registration-open helpers control access. Coming-soon events with registration enabled offer pre-registration; live events with registration disabled show **Registrations paused**; concluded events and unopened events show their respective notices without an active form or registration CTA.
 - Submission disables the fields and action, shows **Submitting…** and a spinner, and preserves entered details on connection or server errors. Server field errors remain associated with their inputs.
 - Success focuses a status panel, confirms registration or pre-registration and displays the saved reference ID.
-- UGX success also says: **Your confirmation and payment details will be emailed to you.** This is the requested success copy; the registration endpoint itself does not send payment emails.
+- HNC and UGX send a registration confirmation through Brevo after a new registration is saved. The email includes all submitted details: name, phone, email, CNIC, city, ambassador, university, transport preference and UGX game, alongside the event, dates, venue and reference. Blank optional fields show **Not provided**. Both HTML and plain-text versions include these details and the transport availability notice. Payment instructions are deferred until finalized; the email does not claim payment has been received.
+- The official NETRONiX logo and the matching HNC or UGX logo appear at the top, using absolute public HTTPS URLs under `https://www.netronixgiki.com/brand/`. Original PNGs retain their transparent canvas and aspect ratios; table-based layout, explicit dimensions, fluid widths and alt text support email clients. These existing assets are already deployed and do not depend on localhost or new asset hosting.
+- Success reports whether Brevo accepted the email. Provider errors, missing configuration and timestamp failures do not undo a saved registration. Invalid, duplicate and closed-event requests never send mail.
+
+## Brevo configuration and checks
+
+Set `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` and `BREVO_SENDER_NAME` in `.env.local` for local development and separately in the deployment platform's server-side environment. Authenticate the sending domain and verify the sender in Brevo. Restart the local server after changing environment variables; redeploy after updating production variables. Keys must never use a `NEXT_PUBLIC_` prefix or be committed.
+
+[`event-registration-email.ts`](../src/lib/event-registration-email.ts) calls Brevo's transactional API with a 10-second timeout and the registration UUID as its idempotency key. HTML escapes dynamic content. `Registration.emailSentAt` records provider acceptance, not confirmed inbox delivery. Brevo transactional logs show delivery and bounces. If a provider request fails, the timestamp stays null; if only the timestamp update fails, Brevo may already have accepted the message. Check logs before manually resending. There is no automatic resend or backfill of older registrations in this change. Existing complaint emails keep their Resend integration.
+
+Read-only account/sender diagnostics:
+
+```sh
+node --import tsx scripts/check-brevo.mjs
+```
+
+To send exactly one clearly labeled test email to an address you choose:
+
+```sh
+node --import tsx scripts/check-brevo.mjs --send-test you@example.com
+```
+
+The test does not create an event registration. Restricted API keys may disallow account/sender diagnostics while still permitting transactional email sending.
+
+Unit tests: `node --import tsx --test src/lib/event-registration-email.test.ts`. The database integration check `node --import tsx scripts/verify-event-registrations.mjs` mocks all Brevo calls, verifies acceptance timestamps and failure handling, and rolls back all synthetic database records. It never sends real email, even with a live key configured.
 
 [`isHncOrUgx`](../src/lib/events.ts) limits the dedicated page/form composition to those two slugs. Other event and volunteer forms retain their existing flow. The registration route remains dynamic so clock and admin changes apply on each request.
 
@@ -41,6 +67,6 @@ Homepage composition lives in [`events.tsx`](../src/components/sections/events.t
 
 ## Verification
 
-The review's sole issue is resolved; verdict: **SHIP**. The focused suite passed **18 tests**, typecheck passed, and ESLint passed with seven pre-existing warnings. The final production rebuild passed.
+The original visual review's sole issue is resolved; verdict: **SHIP**. After the Brevo, full-details email and transport updates, the focused suite passed **27 tests**, typecheck and scoped ESLint passed, and the production build passed. The database check verified both transport answers, preservation of the UGX game, every submitted field reaching the email, acceptance timestamps, duplicate suppression and saved registrations surviving email/timestamp failures, with all writes rolled back and all email calls mocked. Both registration forms and email HTML previews were inspected on desktop and at 390px wide without horizontal overflow; logos loaded correctly. Brevo also accepted one explicitly requested test confirmation during initial setup; provider acceptance alone does not confirm inbox delivery.
 
 See [SETUP.md](../SETUP.md#hnc--ugx-ambassador-call-december-2026) for validation, typecheck, lint, build and integration commands. The markup tests run with `node --import tsx --import ./scripts/register-css-test-loader.mjs --test src/components/forms/event-registration-form.test.tsx`: CSS Modules are stubbed only for Node markup tests; the browser build compiles the real CSS.

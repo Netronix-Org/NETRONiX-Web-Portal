@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowUpRight, CheckCircle2, Loader2 } from "lucide-react";
-import { getEventRegistrationSchema, UGX_GAMES, type EventRegistrationInput, type EventRegistrationData } from "@/lib/validation/event-registration";
+import { getEventRegistrationSchema, UGX_GAMES, TRANSPORT_NOTICE, type EventRegistrationInput, type EventRegistrationData } from "@/lib/validation/event-registration";
 import styles from "./event-registration.module.css";
 
 const FIELDS = [
@@ -21,6 +21,7 @@ export function EventRegistrationForm({ slug, eventTitle, isPreReg = false }: { 
   const isUgx = slug === "ugx";
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const { register, handleSubmit, setError: setFieldError, formState: { errors, isSubmitting } } = useForm<EventRegistrationInput, unknown, EventRegistrationData>({ resolver: zodResolver(getEventRegistrationSchema(slug)) });
 
   async function submit(values: EventRegistrationData) {
@@ -35,10 +36,12 @@ export function EventRegistrationForm({ slug, eventTitle, isPreReg = false }: { 
             if (message) setFieldError(field.name, { type: "server", message });
           }
           if (data.errors.game?.[0]) setFieldError("game", { type: "server", message: data.errors.game[0] });
+          if (data.errors.transport?.[0]) setFieldError("transport", { type: "server", message: data.errors.transport[0] });
         }
         setError(data.message || "Couldn't save your registration. Please try again.");
         return;
       }
+      setEmailSent(data.emailSent === true);
       setSubmitted(data.id);
     } catch {
       setError("Couldn't connect. Check your connection and try again; your details are still here.");
@@ -51,7 +54,7 @@ export function EventRegistrationForm({ slug, eventTitle, isPreReg = false }: { 
         <CheckCircle2 size={36} className={styles.successIcon} aria-hidden="true" />
         <h2 className={styles.successTitle}>{isPreReg ? "Pre-registration received." : "You’re registered."}</h2>
         <p className={styles.closed}>Your {isPreReg ? "pre-registration" : "registration"} for {eventTitle} is saved. Keep this reference if you need to contact the event team.</p>
-        {isUgx && <p className={styles.closed}>Your confirmation and payment details will be emailed to you.</p>}
+        <p className={styles.closed}>{emailSent ? "Your registration confirmation has been sent to your email. Payment instructions will follow once finalized." : "We couldn’t send your confirmation email right now. Your registration is saved; keep your reference when contacting the event team."}</p>
         <code className={styles.reference}>{submitted}</code>
       </div>
     );
@@ -60,7 +63,7 @@ export function EventRegistrationForm({ slug, eventTitle, isPreReg = false }: { 
   return (
     <form onSubmit={handleSubmit(submit)} noValidate aria-label={`${eventTitle} registration`} className={styles.panel}>
       <div className={styles.formHeader}><h2>Your details</h2><span>{isPreReg ? "Pre-registration open" : "Registration open"}</span></div>
-      <p className={styles.formIntro}>{isUgx ? "Name, phone, email, CNIC, city and game are required." : "Name, phone, email, CNIC and city are required."}<br />Ambassador and university are optional.</p>
+      <p className={styles.formIntro}>{isUgx ? "Name, phone, email, CNIC, city, game and transport preference are required." : "Name, phone, email, CNIC, city and transport preference are required."}<br />Ambassador and university are optional.</p>
       <fieldset disabled={isSubmitting} className={styles.fields}>
         <legend className="sr-only">Participant details</legend>
         {FIELDS.map((field) => {
@@ -85,12 +88,22 @@ export function EventRegistrationForm({ slug, eventTitle, isPreReg = false }: { 
             {errors.game && <p id="participant-game-error" role="alert" className={styles.fieldError}>{errors.game.message}</p>}
           </div>
         )}
+        <div className={`${styles.field} ${styles.full}`}>
+          <label htmlFor="participant-transport" className={styles.label}>Would you like to avail transport?</label>
+          <select id="participant-transport" required defaultValue="" aria-invalid={Boolean(errors.transport)} aria-describedby={`participant-transport-notice${errors.transport ? " participant-transport-error" : ""}`} className={`${styles.input} ${styles.select}`} {...register("transport")}>
+            <option value="" disabled>Select your preference</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+          {errors.transport && <p id="participant-transport-error" role="alert" className={styles.fieldError}>{errors.transport.message}</p>}
+        </div>
         {error && <p role="alert" className={`${styles.serverError} ${styles.full}`}>{error}</p>}
         <button type="submit" disabled={isSubmitting} className={`${styles.submit} ${styles.full}`}>
           <span>{isSubmitting ? "Submitting…" : `${isPreReg ? "Pre-register" : "Register"} for ${slug === "ugx" ? "UGX" : "HNC"}`}</span>
           <span>{isSubmitting ? <Loader2 size={17} className="animate-spin" aria-hidden="true" /> : <ArrowUpRight size={18} aria-hidden="true" />}</span>
         </button>
       </fieldset>
+      <p id="participant-transport-notice" className={styles.transportNotice}>{TRANSPORT_NOTICE}</p>
       <p className={styles.privacy}>One registration per CNIC for this event.<br />Your details are used to manage your event registration.</p>
     </form>
   );

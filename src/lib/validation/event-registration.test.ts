@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EventRegistrationSchema, getEventRegistrationSchema, getUgxGame, UGX_GAMES } from "./event-registration";
+import { EventRegistrationSchema, getEventRegistrationSchema, getUgxGame, getTransportPreference, UGX_GAMES } from "./event-registration";
 import { RegistrationSchema } from "./registration";
 import { VolunteerRegistrationSchema } from "./volunteer-registration";
 import { isHncOrUgx } from "../events";
@@ -11,6 +11,7 @@ const required = {
   email: " Sample@Example.COM ",
   cnic: "12345-1234567-1",
   city: " Islamabad ",
+  transport: "no",
 };
 
 test("shared contact fields are normalized", () => {
@@ -21,6 +22,23 @@ test("shared contact fields are normalized", () => {
   assert.equal(data.city, "Islamabad");
   assert.equal(data.ambassador, undefined);
   assert.equal(data.university, undefined);
+});
+
+test("both events require an explicit transport answer and retain unanswered historic records", () => {
+  for (const slug of ["ugx", "hack-n-connect"]) {
+    const schema = getEventRegistrationSchema(slug);
+    for (const transport of ["yes", "no"]) {
+      const data = schema.parse({ ...required, game: "FC26", transport });
+      assert.equal(data.transport, transport);
+      assert.equal(getTransportPreference({ transport }), transport === "yes" ? "Yes" : "No");
+    }
+    for (const transport of [undefined, "", "maybe", true, false]) {
+      const result = schema.safeParse({ ...required, game: "FC26", transport });
+      assert.equal(result.success, false);
+      if (!result.success) assert.ok(result.error.flatten().fieldErrors.transport);
+    }
+  }
+  for (const data of [null, {}, { game: "FC26" }, { transport: false }]) assert.equal(getTransportPreference(data), null);
 });
 
 test("UGX requires one of the two games; HNC does not require a game", () => {

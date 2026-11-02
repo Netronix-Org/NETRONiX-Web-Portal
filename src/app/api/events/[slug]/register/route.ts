@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { RegistrationSchema } from "@/lib/validation/registration";
 import { getEventRegistrationSchema } from "@/lib/validation/event-registration";
+import { sendRegistrationConfirmation } from "@/lib/event-registration-email";
 import {
   VolunteerRegistrationSchema,
   type VolunteerFormData,
@@ -111,12 +112,12 @@ export async function POST(
     if ("error" in resolved) return resolved.error;
     const { event } = resolved;
     const isPreReg = isPreRegistration(event);
-    const { game, ...participant } = parsed.data;
+    const { game, transport, ...participant } = parsed.data;
     try {
       const inserted = await prisma.registration.create({
         data: {
           ...participant,
-          ...(slug === "ugx" && game ? { formData: { game } } : {}),
+          formData: { transport, ...(slug === "ugx" && game ? { game } : {}) },
           ambassador: parsed.data.ambassador || null,
           university: parsed.data.university || null,
           eventId: event.id,
@@ -125,7 +126,32 @@ export async function POST(
         },
         select: { id: true, createdAt: true, isPreRegistration: true },
       });
-      return NextResponse.json({ id: inserted.id, submittedAt: inserted.createdAt, isPreRegistration: isPreReg, message: `Your ${isPreReg ? "pre-registration" : "registration"} for ${event.title} has been received.` }, { status: 201 });
+      const confirmation = await sendRegistrationConfirmation({
+        id: inserted.id,
+        to: participant.email,
+        fullName: participant.fullName,
+        phone: participant.phone,
+        cnic: participant.cnic,
+        city: participant.city,
+        ambassador: participant.ambassador,
+        university: participant.university,
+        slug: slug as "ugx" | "hack-n-connect",
+        eventTitle: event.title,
+        isPreRegistration: isPreReg,
+        game,
+        transport,
+      });
+      if (confirmation.success) {
+        try {
+          await prisma.registration.update({ where: { id: inserted.id }, data: { emailSentAt: new Date() } });
+        } catch {
+          // An accepted email or a saved registration must not become a failed submission.
+          console.error("[registration-email] Could not record email timestamp", inserted.id);
+        }
+      } else {
+        console.error("[registration-email] Confirmation not accepted", inserted.id, confirmation.reason);
+      }
+      return NextResponse.json({ id: inserted.id, submittedAt: inserted.createdAt, isPreRegistration: isPreReg, emailSent: confirmation.success, message: `Your ${isPreReg ? "pre-registration" : "registration"} for ${event.title} has been received.` }, { status: 201 });
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         return NextResponse.json({ message: "You have already registered for this event with that CNIC." }, { status: 409 });
