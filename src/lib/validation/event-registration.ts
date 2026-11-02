@@ -3,6 +3,8 @@ import { AmbassadorSchema } from "./ambassador";
 
 export const UGX_GAMES = ["FC26", "Tekken 8"] as const;
 const UgxGameSchema = z.enum(UGX_GAMES, { error: "Select FC26 or Tekken 8." });
+const TransportSchema = z.enum(["yes", "no"], { error: "Choose whether you would like to avail transport." });
+export const TRANSPORT_NOTICE = "For now, transport is available from Islamabad, Peshawar and Haripur only.";
 
 /** HNC / UGX share the same contact validation as the ambassador call. */
 export const EventRegistrationSchema = AmbassadorSchema.pick({
@@ -15,6 +17,7 @@ export const EventRegistrationSchema = AmbassadorSchema.pick({
   ambassador: z.string().trim().max(100, "Use 100 characters or fewer.").optional(),
   university: z.string().trim().max(200, "Use 200 characters or fewer.").optional(),
   game: UgxGameSchema.optional(),
+  transport: TransportSchema,
 });
 
 export function getEventRegistrationSchema(slug: string): z.ZodType<EventRegistrationData, EventRegistrationInput> {
@@ -27,6 +30,12 @@ export function getEventRegistrationSchema(slug: string): z.ZodType<EventRegistr
 export function getUgxGame(formData: unknown): typeof UGX_GAMES[number] | null {
   const parsed = z.object({ game: UgxGameSchema }).safeParse(formData);
   return parsed.success ? parsed.data.game : null;
+}
+
+/** Missing historic answers stay distinct from an explicit No. */
+export function getTransportPreference(formData: unknown): "Yes" | "No" | null {
+  const parsed = z.object({ transport: TransportSchema }).safeParse(formData);
+  return parsed.success ? (parsed.data.transport === "yes" ? "Yes" : "No") : null;
 }
 
 export type EventRegistrationInput = z.input<typeof EventRegistrationSchema>;

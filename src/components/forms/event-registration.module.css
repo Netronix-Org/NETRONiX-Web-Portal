@@ -59,6 +59,7 @@
 .submit:focus-visible { outline: 2px solid var(--form-accent); outline-offset: 5px; border-radius: 999px; }
 .submit:disabled { cursor: wait; opacity: 0.65; }
 .privacy { margin-top: 20px; color: #a1a1ad; font-size: 10px; line-height: 1.8; text-align: center; }
+.transportNotice { margin-top: 20px; color: #d4d4dc; font-size: 12px; line-height: 1.8; }
 .successIcon { margin-bottom: 24px; color: var(--form-accent); }
 .successTitle { font-family: var(--font-space-grotesk), sans-serif; font-size: 32px; font-weight: 400; line-height: 1.15; letter-spacing: -0.03em; }
 .reference { display: block; overflow-wrap: anywhere; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.12); color: #d4d4dc; font-size: 12px; }

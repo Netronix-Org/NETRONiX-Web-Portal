@@ -13,6 +13,12 @@ test("both participant forms retain their contact inputs; only UGX requires a ga
     assert.deepEqual(inputs, ["fullName", "phone", "email", "cnic", "city", "ambassador", "university"].map((name, index) => ({ name, required: index < 5 })));
     assert.ok(!html.includes('name="registrationNumber"'));
     assert.ok(!html.includes('name="batch"'));
+    assert.match(html, /<select\b[^>]*required=""[^>]*name="transport"/);
+    assert.ok(html.includes('for="participant-transport"'));
+    assert.ok(html.includes('<option value="yes">Yes</option>'));
+    assert.ok(html.includes('<option value="no">No</option>'));
+    assert.ok(html.includes("For now, transport is available from Islamabad, Peshawar and Haripur only."));
+    assert.ok(html.indexOf('id="participant-transport-notice"') > html.indexOf("</fieldset>"));
     if (slug === "ugx") {
       assert.match(html, /<select\b[^>]*required=""[^>]*name="game"/);
       assert.ok(html.includes('<option value="FC26">FC26</option>'));
