@@ -6,13 +6,21 @@ import { EventRegistrationForm } from "./event-registration-form";
 import { AmbassadorForm } from "./ambassador-form";
 import { EventCard } from "../ui/event-card";
 
-test("both participant forms render exactly five required and two optional inputs", () => {
+test("both participant forms retain their contact inputs; only UGX requires a game selector", () => {
   for (const slug of ["ugx", "hack-n-connect"]) {
     const html = renderToStaticMarkup(<EventRegistrationForm slug={slug} eventTitle={slug} />);
     const inputs = [...html.matchAll(/<input\b[^>]*>/g)].map(([tag]) => ({ name: /name="([^"]+)"/.exec(tag)?.[1], required: /\brequired=""/.test(tag) }));
     assert.deepEqual(inputs, ["fullName", "phone", "email", "cnic", "city", "ambassador", "university"].map((name, index) => ({ name, required: index < 5 })));
     assert.ok(!html.includes('name="registrationNumber"'));
     assert.ok(!html.includes('name="batch"'));
+    if (slug === "ugx") {
+      assert.match(html, /<select\b[^>]*required=""[^>]*name="game"/);
+      assert.ok(html.includes('<option value="FC26">FC26</option>'));
+      assert.ok(html.includes('<option value="Tekken 8">Tekken 8</option>'));
+      assert.ok(html.includes('for="participant-game"'));
+    } else {
+      assert.ok(!html.includes('name="game"'));
+    }
   }
 });
 

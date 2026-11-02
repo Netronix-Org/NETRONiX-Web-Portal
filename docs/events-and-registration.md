@@ -18,9 +18,12 @@ Inputs have persistent labels, associated inline errors and branded keyboard foc
 
 HNC and UGX require **full name, phone, email, CNIC and city**, with optional **ambassador** (the referring ambassador's name) and **university**. The form explains the requirements, one registration per CNIC per event, and how the submitted details are used.
 
+UGX additionally requires a single **Game** choice: **FC26** or **Tekken 8**. Client and server validation reject missing or unsupported games. The choice is saved in the existing `Registration.formData.game` JSON field, appears in expanded admin details and has its own Game column in UGX CSV exports. Older registrations without a game remain readable; no database migration is required.
+
 - Existing status, scheduling and registration-open helpers control access. Coming-soon events with registration enabled offer pre-registration; live events with registration disabled show **Registrations paused**; concluded events and unopened events show their respective notices without an active form or registration CTA.
 - Submission disables the fields and action, shows **Submitting…** and a spinner, and preserves entered details on connection or server errors. Server field errors remain associated with their inputs.
 - Success focuses a status panel, confirms registration or pre-registration and displays the saved reference ID.
+- UGX success also says: **Your confirmation and payment details will be emailed to you.** This is the requested success copy; the registration endpoint itself does not send payment emails.
 
 [`isHncOrUgx`](../src/lib/events.ts) limits the dedicated page/form composition to those two slugs. Other event and volunteer forms retain their existing flow. The registration route remains dynamic so clock and admin changes apply on each request.
 

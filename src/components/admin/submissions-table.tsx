@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InterviewScore, Registration, RegistrationStatus } from "@prisma/client";
 import { skillLabel, isHncOrUgx } from "@/lib/events";
+import { getUgxGame } from "@/lib/validation/event-registration";
 import {
   isVolunteerFormData,
   SKILL_RATING_CATEGORIES,
@@ -293,7 +294,7 @@ export function SubmissionsTable({ eventId, eventTitle, eventSlug }: Submissions
 
                           {participantEvent ? (
                             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                              {[["Name", reg.fullName], ["Phone", reg.phone], ["Email", reg.email], ["CNIC", reg.cnic], ["City", reg.city], ["Ambassador", reg.ambassador], ["University", reg.university]].map(([label, value]) => (
+                              {[["Name", reg.fullName], ["Phone", reg.phone], ["Email", reg.email], ["CNIC", reg.cnic], ["City", reg.city], ["Ambassador", reg.ambassador], ["University", reg.university], ...(eventSlug === "ugx" ? [["Game", getUgxGame(reg.formData)]] : [])].map(([label, value]) => (
                                 <div key={label}><dt className="text-xs text-[#999999]">{label}</dt><dd className="mt-1 break-words text-sm text-[#D4D4D4]">{value || "—"}</dd></div>
                               ))}
                             </dl>
