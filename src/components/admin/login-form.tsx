@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const FIELD =
   "w-full rounded-lg border px-4 py-3 text-sm outline-none transition-colors " +
@@ -91,10 +92,9 @@ export function LoginForm() {
         >
           Password
         </label>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}

@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/:portal(ambassadors|participants)/portal",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      },
+      {
         // Long-cache static assets (fonts, images, videos in public/)
         source: "/assets/:path*",
         headers: [

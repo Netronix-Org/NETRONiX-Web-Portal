@@ -41,6 +41,7 @@ async function main() {
       phone: "00000000000", cnic: "0000000000000", city: "Sample City",
       ambassador: "Sample Ambassador", university: "Sample University",
       transport: "yes",
+      portalPassword: "EXAMPLE1",
       eventTitle: "UGX — Uber.Game X", isPreRegistration: false, game: "FC26", isTest: true,
     });
     if (!result.success) throw new Error(`Brevo did not accept the test email: ${result.reason}.`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Lenis from "lenis";
 
 /**
@@ -18,7 +19,16 @@ import Lenis from "lenis";
  * scroll tracker, so whileInView and useScroll hooks still work correctly.
  */
 export function SmoothScroll() {
+  const pathname = usePathname();
+  const useNativeScroll =
+    pathname === "/admin" ||
+    pathname?.startsWith("/admin/") ||
+    pathname === "/participants/portal" ||
+    pathname === "/ambassadors/portal";
+
   useEffect(() => {
+    if (useNativeScroll) return;
+
     const lenis = new Lenis({
       duration: 1.4,           // scroll inertia in seconds (higher = smoother)
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // expo-out
@@ -45,7 +55,7 @@ export function SmoothScroll() {
       lenis.destroy();
       delete (window as unknown as Record<string, unknown>).__lenis;
     };
-  }, []);
+  }, [useNativeScroll]);
 
   return null;
 }

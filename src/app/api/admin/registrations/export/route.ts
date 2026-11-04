@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { csvCell } from "@/lib/csv";
+import { registrationAmbassadorNames, registrationRosterQuery } from "@/lib/admin-roster-query";
 import { skillLabel, isHncOrUgx } from "@/lib/events";
-import { getUgxGame, getTransportPreference } from "@/lib/validation/event-registration";
+import { getAmbassadorCode, getHncChoices, getUgxGame, getTransportPreference } from "@/lib/validation/event-registration";
 import {
   isVolunteerFormData,
   SKILL_RATING_CATEGORIES,
@@ -103,16 +104,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Event not found" }, { status: 404 });
   }
 
+  const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, req.nextUrl.searchParams);
   const registrations = await prisma.registration.findMany({
-    where: { eventId },
-    orderBy: { createdAt: "desc" },
+    where,
+    orderBy,
     include: { interviewScore: true },
   });
 
+  const isUgx = event.slug === "ugx";
+  const ambassadorNames = isHncOrUgx(event.slug) ? await registrationAmbassadorNames(registrations) : {};
   const csv = isHncOrUgx(event.slug)
     ? [
-        ["Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "University", "Transport", ...(event.slug === "ugx" ? ["Game"] : []), "Status", "Admin Notes"].map(csvCell).join(","),
-        ...registrations.map((reg) => [reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular", reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, reg.ambassador, reg.university, getTransportPreference(reg.formData), ...(event.slug === "ugx" ? [getUgxGame(reg.formData)] : []), reg.status, reg.adminNotes].map(csvCell).join(",")),
+        [
+          "Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "Ambassador Code", "University", "Transport",
+          ...(isUgx ? ["Game"] : ["Registration type", "Socials opt-in"]),
+          "Payment status", "Admin Notes",
+        ].map(csvCell).join(","),
+        ...registrations.map((reg) => {
+          const { registrationType, socials } = getHncChoices(reg.formData);
+          const code = getAmbassadorCode(reg.formData);
+          return [
+            reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular",
+            reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, ambassadorNames[Number(code)] ?? reg.ambassador, code, reg.university,
+            getTransportPreference(reg.formData),
+            ...(isUgx ? [getUgxGame(reg.formData)] : [registrationType, socials]),
+            reg.paymentPaid ? "Paid" : "Payment pending", reg.adminNotes,
+          ].map(csvCell).join(",");
+        }),
       ].join("\r\n")
     : [COLUMNS.map(csvCell).join(","), ...registrations.map(toCsvRow)].join("\r\n");
 

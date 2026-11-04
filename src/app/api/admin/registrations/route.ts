@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { RegistrationStatus } from "@prisma/client";
+import { isHncOrUgx } from "@/lib/events";
+import { registrationAmbassadorNames, registrationRosterQuery, rosterPage, ROSTER_PAGE_SIZE } from "@/lib/admin-roster-query";
 
 /**
  * GET   /api/admin/registrations?eventId=...&q=...&page=0
@@ -12,8 +14,6 @@ import { RegistrationStatus } from "@prisma/client";
  * unambiguous: you are never looking at two events' rows at once.
  */
 
-const PAGE_SIZE = 50;
-
 export async function GET(req: NextRequest) {
   const session = await requireSession();
   if (!session) {
@@ -22,39 +22,29 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const eventId = searchParams.get("eventId");
-  const query = searchParams.get("q")?.trim();
-  const page = Math.max(0, Number(searchParams.get("page") ?? 0) || 0);
+  const page = rosterPage(searchParams);
 
   if (!eventId) {
     return NextResponse.json({ message: "eventId is required" }, { status: 400 });
   }
 
-  const where = {
-    eventId,
-    ...(query
-      ? {
-          OR: [
-            { fullName: { contains: query, mode: "insensitive" as const } },
-            { registrationNumber: { contains: query, mode: "insensitive" as const } },
-            { email: { contains: query, mode: "insensitive" as const } },
-            { cnic: { contains: query.replace(/-/g, "") || query, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-  };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { slug: true } });
+  if (!event) return NextResponse.json({ message: "Event not found" }, { status: 404 });
+  const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, searchParams);
 
   const [registrations, total] = await Promise.all([
     prisma.registration.findMany({
       where,
-      orderBy: { createdAt: "desc" },
-      skip: page * PAGE_SIZE,
-      take: PAGE_SIZE,
+      orderBy,
+      skip: page * ROSTER_PAGE_SIZE,
+      take: ROSTER_PAGE_SIZE,
       include: { interviewScore: true },
     }),
     prisma.registration.count({ where }),
   ]);
 
-  return NextResponse.json({ registrations, total, page, pageSize: PAGE_SIZE }, { headers: { "Cache-Control": "private, no-store" } });
+  const ambassadorNames = isHncOrUgx(event.slug) ? await registrationAmbassadorNames(registrations) : {};
+  return NextResponse.json({ registrations, ambassadorNames, total, page, pageSize: ROSTER_PAGE_SIZE }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 const PatchSchema = z.object({

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import type { Event } from "@prisma/client";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
@@ -33,13 +33,18 @@ export function EventRegistrationPage({ event }: { event: Event }) {
               <div><dt>Venturethon</dt><dd>Collaborate to design innovative prototypes.</dd></div>
             </dl> : <p className={styles.note}>Bring your people. Find your competition.<br />Make your next move with NETRONiX.</p>}
           </div>
-          {open ? <EventRegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} /> : (
+          <div className="min-w-0">
+            <Link href="/participants/portal" className="mb-4 flex min-h-12 items-center justify-between gap-4 rounded-xl border border-white/15 bg-[#101010] px-4 text-sm font-medium text-[#C4D1E5] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93C5FD]">
+              Participant portal <ArrowUpRight size={17} aria-hidden="true" />
+            </Link>
+            {open ? <EventRegistrationForm slug={event.slug} eventTitle={event.title} isPreReg={isPreReg} /> : (
             <div className={styles.panel}>
               <h2 className={styles.successTitle}>{status === "past" ? "This event has concluded." : status === "live" ? "Registrations paused." : "Registration opens soon."}</h2>
               <p className={styles.closed}>{status === "past" ? "Thank you for your interest. Explore the events page for what comes next." : "New registrations are currently unavailable. Check back here for updates from the event team."}</p>
               <Link href="/#events" className={`${styles.back} mt-6`}><ArrowLeft size={15} aria-hidden="true" />Explore events</Link>
             </div>
-          )}
+            )}
+          </div>
         </div>
         <footer className={styles.footer}><span>NETRONiX · Ghulam Ishaq Khan Institute</span><span>HNC &amp; UGX · December {AMBASSADOR_CAMPAIGN.year}</span></footer>
       </div>

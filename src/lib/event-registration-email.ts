@@ -1,7 +1,8 @@
 import { AMBASSADOR_CAMPAIGN } from "./ambassadors";
-import { TRANSPORT_NOTICE, type UGX_GAMES } from "./validation/event-registration";
+import { PARTICIPANT_PORTAL_URL } from "./participants";
+import { TRANSPORT_NOTICE, type EventRegistrationData, type UGX_GAMES } from "./validation/event-registration";
 
-export interface RegistrationEmail {
+export interface RegistrationEmail extends Pick<EventRegistrationData, "registrationType" | "socials"> {
   id: string;
   to: string;
   fullName: string;
@@ -10,12 +11,14 @@ export interface RegistrationEmail {
   city: string;
   transport: "yes" | "no";
   ambassador?: string;
+  ambassadorCode?: string;
   university?: string;
   slug: "ugx" | "hack-n-connect";
   eventTitle: string;
   isPreRegistration: boolean;
   game?: typeof UGX_GAMES[number];
   isTest?: boolean;
+  portalPassword: string;
 }
 
 function escapeHtml(value: string): string {
@@ -27,6 +30,7 @@ export function registrationEmailContent(registration: RegistrationEmail) {
   const heading = `${type} received`;
   const dates = `${AMBASSADOR_CAMPAIGN.dates} ${AMBASSADOR_CAMPAIGN.year}`;
   const game = registration.slug === "ugx" ? registration.game : undefined;
+  const { registrationType, socials } = registration.slug === "hack-n-connect" ? registration : {};
   // Public HTTPS assets work in email clients; the local app URL may be localhost.
   const logoOrigin = "https://www.netronixgiki.com";
   const eventLogo = registration.slug === "ugx" ? "ugx" : "hnc";
@@ -35,6 +39,8 @@ export function registrationEmailContent(registration: RegistrationEmail) {
     ["Dates", dates],
     ["Venue", "GIKI"],
     ...(game ? [["Game", game]] : []),
+    ...(registrationType ? [["Registration type", registrationType]] : []),
+    ...(socials ? [["Socials opt-in", socials]] : []),
     ["Reference", registration.id],
     ["Name", registration.fullName],
     ["Phone", registration.phone],
@@ -42,6 +48,7 @@ export function registrationEmailContent(registration: RegistrationEmail) {
     ["CNIC", registration.cnic],
     ["City", registration.city],
     ["Ambassador", registration.ambassador?.trim() || "Not provided"],
+    ...(registration.ambassadorCode ? [["Ambassador code", registration.ambassadorCode]] : []),
     ["University", registration.university?.trim() || "Not provided"],
     ["Transport", registration.transport === "yes" ? "Yes" : "No"],
   ];
@@ -53,6 +60,10 @@ export function registrationEmailContent(registration: RegistrationEmail) {
       ...(registration.isTest ? [testNote, ""] : []),
       `Hello ${registration.fullName},`, "",
       `We have received your ${type.toLowerCase()} for ${registration.eventTitle}.`, "",
+      `Participant portal: ${PARTICIPANT_PORTAL_URL}`,
+      `Sign-in email: ${registration.to}`,
+      `Portal password: ${registration.portalPassword}`,
+      "Use the portal to view your registrations and upload your payment screenshot.", "",
       ...details.map(([label, value]) => `${label}: ${value}`), "",
       TRANSPORT_NOTICE, "",
       "Payment instructions will follow in a separate email once finalized.",
@@ -71,6 +82,17 @@ ${registration.isTest ? `<p style="color:${accent}">${testNote}</p>` : ""}
 <h1 style="margin:0 0 24px;font-size:30px;line-height:1.2;font-weight:500;color:${accent}">${heading}.</h1>
 <p style="line-height:1.7">Hello ${escapeHtml(registration.fullName)},</p>
 <p style="line-height:1.7">We have received your ${type.toLowerCase()} for <strong>${escapeHtml(registration.eventTitle)}</strong>.</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0;background:#1d1d23;border:1px solid #414148;border-radius:12px"><tr><td style="padding:20px">
+<h2 style="margin:0 0 8px;font-size:20px;color:#ffffff">Participant Portal</h2>
+<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#d4d4df">View your registration and upload your payment screenshot.</p>
+<p style="margin:0 0 12px;font-size:14px;line-height:1.6;overflow-wrap:anywhere">Sign-in email: ${escapeHtml(registration.to)}</p>
+<p style="margin:0 0 4px;font-size:13px;color:#d4d4df">Portal password</p>
+<p style="margin:0 0 20px;font-family:Consolas,'Courier New',monospace;font-size:28px;line-height:1.3;color:#ffffff"><strong>${escapeHtml(registration.portalPassword)}</strong></p>
+<table role="presentation" cellspacing="0" cellpadding="0"><tr><td align="center" bgcolor="${accent}" style="border-radius:8px;mso-padding-alt:14px 20px">
+<a href="${PARTICIPANT_PORTAL_URL}" style="display:inline-block;padding:14px 20px;border-radius:8px;background:${accent};color:#101015;font-size:15px;font-weight:bold;text-decoration:none;mso-padding-alt:0">Open Participant Portal</a>
+</td></tr></table>
+</td></tr></table>
+<h2 style="margin:24px 0 0;font-size:18px;color:#ffffff">Registration details</h2>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0;border-top:1px solid #414148">${details.map(([label, value]) => `<tr><td style="padding:12px 12px 12px 0;border-bottom:1px solid #414148;color:#b9b9c3;font-size:13px;vertical-align:top">${label}</td><td style="padding:12px 0;border-bottom:1px solid #414148;font-size:13px;overflow-wrap:anywhere;word-break:break-word">${escapeHtml(value)}</td></tr>`).join("")}</table>
 <p style="font-size:13px;line-height:1.7;color:#b9b9c3">${TRANSPORT_NOTICE}</p>
 <p style="line-height:1.7">Payment instructions will follow in a separate email once finalized.</p>
@@ -86,6 +108,25 @@ export type RegistrationEmailResult =
 
 /** Server-side only: never expose these environment variables to client code. */
 export async function sendRegistrationConfirmation(registration: RegistrationEmail): Promise<RegistrationEmailResult> {
+  return sendParticipantEmail({
+    ...registrationEmailContent(registration),
+    id: registration.id,
+    to: registration.to,
+    fullName: registration.fullName,
+    tags: ["event-registration", registration.slug],
+  });
+}
+
+export async function sendParticipantEmail(message: {
+  id: string;
+  to: string;
+  fullName?: string;
+  subject: string;
+  textContent: string;
+  htmlContent?: string;
+  tags: string[];
+}): Promise<RegistrationEmailResult> {
+  const { id, to, fullName, ...content } = message;
   const apiKey = process.env.BREVO_API_KEY?.trim();
   const email = process.env.BREVO_SENDER_EMAIL?.trim();
   const name = process.env.BREVO_SENDER_NAME?.trim() || "NETRONiX Events";
@@ -97,16 +138,15 @@ export async function sendRegistrationConfirmation(registration: RegistrationEma
       headers: { "api-key": apiKey, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         sender: { name, email },
-        to: [{ email: registration.to, name: registration.fullName }],
-        ...registrationEmailContent(registration),
-        headers: { IdempotencyKey: registration.id },
-        tags: ["event-registration", registration.slug],
+        to: [{ email: to, name: fullName }],
+        ...content,
+        headers: { IdempotencyKey: id },
       }),
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) {
       // Brevo errors can echo recipients; log only status and an internal reference.
-      console.error("[registration-email] Brevo rejected request", response.status, registration.id);
+      console.error("[registration-email] Brevo rejected request", response.status, id);
       return { success: false, reason: "provider_rejected" };
     }
     const result: unknown = await response.json();
@@ -115,7 +155,7 @@ export async function sendRegistrationConfirmation(registration: RegistrationEma
     }
     return { success: true, messageId: result.messageId };
   } catch {
-    console.error("[registration-email] Brevo request failed", registration.id);
+    console.error("[registration-email] Brevo request failed", id);
     return { success: false, reason: "connection_failed" };
   }
 }

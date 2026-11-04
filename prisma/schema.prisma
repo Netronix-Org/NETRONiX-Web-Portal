@@ -106,6 +106,8 @@ model Registration {
   adminId            String?            @map("admin_id")
   admin              AdminUser?         @relation("AdminNotes", fields: [adminId], references: [id], onDelete: SetNull)
   emailSentAt        DateTime?          @map("email_sent_at")
+  paymentPaid        Boolean            @default(false) @map("payment_paid")
+  paymentProofPath   String?            @map("payment_proof_path")
   isPreRegistration  Boolean            @default(false) @map("is_pre_registration")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
@@ -115,9 +117,19 @@ model Registration {
   @@unique([eventId, registrationNumber])
   @@unique([eventId, cnic])
   @@index([eventId])
+  @@index([email])
   @@index([status])
   @@index([createdAt])
   @@map("registrations")
+}
+
+model ParticipantAccount {
+  email                       String    @id
+  passwordHash                String    @map("password_hash")
+  issuedPassword              String    @map("issued_password")
+  passwordReminderRequestedAt DateTime? @map("password_reminder_requested_at") @db.Timestamptz(3)
+
+  @@map("participant_accounts")
 }
 
 // ─── Interview scoring ─────────────────────────────────────────────────────
@@ -158,16 +170,20 @@ model InterviewScore {
 
 model AmbassadorApplication {
   id               String   @id @default(uuid())
+  code             Int      @unique @default(dbgenerated("nextval('public.ambassador_code_seq'::regclass)"))
   campaign         String
   fullName         String   @map("full_name")
   cnic             String
   phone            String
   email            String?
+  passwordHash     String?  @map("password_hash")
+  issuedPassword   String?  @map("issued_password")
   university       String
   participantCount Int      @map("participant_count")
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@unique([campaign, cnic])
+  @@unique([campaign, email])
   @@index([campaign, createdAt])
   @@map("ambassador_applications")
 }

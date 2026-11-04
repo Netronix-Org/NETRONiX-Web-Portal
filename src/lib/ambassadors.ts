@@ -12,6 +12,8 @@ export function isAmbassadorCallOpen(now = new Date()): boolean {
 
 export interface AmbassadorApplicationRow {
   id: string;
+  code: number;
+  passwordIssued: boolean;
   fullName: string;
   cnic: string;
   phone: string;

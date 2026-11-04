@@ -10,7 +10,7 @@ test("both participant forms retain their contact inputs; only UGX requires a ga
   for (const slug of ["ugx", "hack-n-connect"]) {
     const html = renderToStaticMarkup(<EventRegistrationForm slug={slug} eventTitle={slug} />);
     const inputs = [...html.matchAll(/<input\b[^>]*>/g)].map(([tag]) => ({ name: /name="([^"]+)"/.exec(tag)?.[1], required: /\brequired=""/.test(tag) }));
-    assert.deepEqual(inputs, ["fullName", "phone", "email", "cnic", "city", "ambassador", "university"].map((name, index) => ({ name, required: index < 5 })));
+    assert.deepEqual(inputs, ["fullName", "phone", "email", "cnic", "city", "ambassador", "university", "ambassadorCode"].map((name, index) => ({ name, required: index < 5 })));
     assert.ok(!html.includes('name="registrationNumber"'));
     assert.ok(!html.includes('name="batch"'));
     assert.match(html, /<select\b[^>]*required=""[^>]*name="transport"/);
@@ -24,8 +24,14 @@ test("both participant forms retain their contact inputs; only UGX requires a ga
       assert.ok(html.includes('<option value="FC26">FC26</option>'));
       assert.ok(html.includes('<option value="Tekken 8">Tekken 8</option>'));
       assert.ok(html.includes('for="participant-game"'));
+      assert.ok(!html.includes('name="registrationType"'));
+      assert.ok(!html.includes('name="socials"'));
     } else {
       assert.ok(!html.includes('name="game"'));
+      assert.match(html, /<select\b[^>]*required=""[^>]*name="registrationType"/);
+      assert.match(html, /<select\b[^>]*required=""[^>]*name="socials"/);
+      assert.ok(html.includes('<option value="Participant">Participant</option>'));
+      assert.ok(html.includes('<option value="Observer">Observer</option>'));
     }
   }
 });

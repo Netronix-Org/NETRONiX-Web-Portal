@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { RegistrationSchema } from "@/lib/validation/registration";
 import { getEventRegistrationSchema } from "@/lib/validation/event-registration";
 import { sendRegistrationConfirmation } from "@/lib/event-registration-email";
+import { getOrIssueParticipantPassword } from "@/lib/participant-credentials";
+import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
 import {
   VolunteerRegistrationSchema,
   type VolunteerFormData,
@@ -112,34 +114,59 @@ export async function POST(
     if ("error" in resolved) return resolved.error;
     const { event } = resolved;
     const isPreReg = isPreRegistration(event);
-    const { game, transport, ...participant } = parsed.data;
+    const { game, transport, registrationType, socials, ambassadorCode, ...participant } = parsed.data;
+    const hncChoices = slug === "hack-n-connect" ? { registrationType, socials } : {};
     try {
-      const inserted = await prisma.registration.create({
-        data: {
-          ...participant,
-          formData: { transport, ...(slug === "ugx" && game ? { game } : {}) },
-          ambassador: parsed.data.ambassador || null,
-          university: parsed.data.university || null,
-          eventId: event.id,
-          skills: [],
-          isPreRegistration: isPreReg,
-        },
-        select: { id: true, createdAt: true, isPreRegistration: true },
+      if (ambassadorCode) {
+        const ambassador = await prisma.ambassadorApplication.findUnique({
+          where: { code: Number(ambassadorCode), campaign: AMBASSADOR_CAMPAIGN.id },
+          select: { id: true },
+        });
+        if (!ambassador) {
+          return NextResponse.json({
+            message: "Please check your ambassador code.",
+            errors: { ambassadorCode: ["This code doesn't match an ambassador for HNC and UGX."] },
+          }, { status: 400 });
+        }
+      }
+      const { inserted, portalPassword } = await prisma.$transaction(async (tx) => {
+        const portalPassword = await getOrIssueParticipantPassword(participant.email, tx);
+        const inserted = await tx.registration.create({
+          data: {
+            ...participant,
+            formData: {
+              transport,
+              ...hncChoices,
+              ...(slug === "ugx" && game ? { game } : {}),
+              ...(ambassadorCode ? { ambassadorCode } : {}),
+            },
+            ambassador: parsed.data.ambassador || null,
+            university: parsed.data.university || null,
+            eventId: event.id,
+            skills: [],
+            isPreRegistration: isPreReg,
+          },
+          select: { id: true, createdAt: true },
+        });
+        return { inserted, portalPassword };
       });
       const confirmation = await sendRegistrationConfirmation({
         id: inserted.id,
         to: participant.email,
+        portalPassword,
         fullName: participant.fullName,
         phone: participant.phone,
         cnic: participant.cnic,
         city: participant.city,
         ambassador: participant.ambassador,
+        ambassadorCode,
         university: participant.university,
         slug: slug as "ugx" | "hack-n-connect",
         eventTitle: event.title,
         isPreRegistration: isPreReg,
         game,
         transport,
+        ...hncChoices,
       });
       if (confirmation.success) {
         try {

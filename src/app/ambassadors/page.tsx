@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Check, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CalendarDays, Check, MapPin, Phone } from "lucide-react";
 import { AmbassadorIdentity } from "@/components/ui/ambassador-identity";
 import { AmbassadorForm } from "@/components/forms/ambassador-form";
 import { BrandLogo } from "@/components/ui/brand-logo";
@@ -59,6 +59,9 @@ export default function AmbassadorsPage() {
           </div>
 
           <div id="apply" className="scroll-mt-6">
+            <Link href="/ambassadors/portal" className="mb-4 flex min-h-12 items-center justify-between gap-4 rounded-xl border border-white/15 bg-[#101010] px-4 text-sm font-medium text-[#C4D1E5] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93C5FD]">
+              Ambassador portal <ArrowUpRight size={17} aria-hidden="true" />
+            </Link>
             {open ? <AmbassadorForm /> : (
               <div className="rounded-2xl border border-white/10 bg-[#101010] p-8">
                 <h2 className="font-heading text-2xl font-semibold">Applications are closed</h2>

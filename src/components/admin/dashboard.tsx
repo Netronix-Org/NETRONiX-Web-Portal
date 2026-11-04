@@ -6,6 +6,8 @@ import type { AdminSession } from "@/lib/auth";
 import type { Event, EventStatus } from "@prisma/client";
 import { EventControls } from "./event-controls";
 import { SubmissionsTable } from "./submissions-table";
+import { ParticipantSubmissions } from "./participant-submissions";
+import { isHncOrUgx } from "@/lib/events";
 import { UsersManager } from "./users-manager";
 import { AmbassadorApplications } from "./ambassador-applications";
 import { Users, Calendar, Inbox, MessageSquare } from "lucide-react";
@@ -33,6 +35,7 @@ export function AdminDashboard({
   );
 
   const totalSubmissions = Object.values(counts).reduce((a, b) => a + b, 0);
+  const selectedEvent = events.find((event) => event.id === selectedEventId);
 
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -206,6 +209,8 @@ export function AdminDashboard({
                 return (
                   <button
                     key={event.id}
+                    type="button"
+                    aria-pressed={active}
                     onClick={() => setSelectedEventId(event.id)}
                     className="py-2 px-4 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03]"
                     style={{
@@ -227,14 +232,19 @@ export function AdminDashboard({
               })}
             </div>
 
-            {selectedEventId ? (
+            {selectedEvent && isHncOrUgx(selectedEvent.slug) ? (
+              <ParticipantSubmissions
+                key={selectedEvent.id}
+                canReviewPayments={session.role === "ADMIN"}
+                eventId={selectedEvent.id}
+                eventSlug={selectedEvent.slug}
+                eventTitle={selectedEvent.title}
+              />
+            ) : selectedEvent ? (
               <SubmissionsTable
-                key={selectedEventId}
-                eventId={selectedEventId}
-                eventSlug={events.find((e) => e.id === selectedEventId)?.slug ?? ""}
-                eventTitle={
-                  events.find((e) => e.id === selectedEventId)?.title ?? "Event"
-                }
+                key={selectedEvent.id}
+                eventId={selectedEvent.id}
+                eventTitle={selectedEvent.title}
               />
             ) : (
               <p className="text-sm" style={{ color: "#666666" }}>

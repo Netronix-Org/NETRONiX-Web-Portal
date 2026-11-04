@@ -8,6 +8,7 @@ const registration: RegistrationEmail = {
   phone: "03001234567", cnic: "0000012345678", city: "Islamabad",
   ambassador: "Sample Ambassador", university: "Sample University",
   transport: "yes",
+  portalPassword: "EXAMPLE1",
   isPreRegistration: false, game: "FC26",
 };
 const keys = ["BREVO_API_KEY", "BREVO_SENDER_EMAIL", "BREVO_SENDER_NAME"] as const;
@@ -58,6 +59,11 @@ test("both official logos lead each email and blank optional fields are explicit
     assert.ok(content.htmlContent.indexOf(eventLogo) < content.htmlContent.indexOf("<h1"));
     assert.ok(content.textContent.includes("Ambassador: Not provided"));
     assert.ok(content.textContent.includes("University: Not provided"));
+    const portalUrl = "https://www.netronixgiki.com/participants/portal";
+    assert.ok(content.textContent.includes(`Participant portal: ${portalUrl}`));
+    assert.ok(content.textContent.includes(`Portal password: ${registration.portalPassword}`));
+    assert.ok(content.htmlContent.includes(`href="${portalUrl}"`));
+    assert.ok(content.htmlContent.includes(`<strong>${registration.portalPassword}</strong>`));
   }
 });
 
