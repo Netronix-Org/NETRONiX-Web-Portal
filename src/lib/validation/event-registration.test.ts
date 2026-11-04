@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EventRegistrationSchema, getEventRegistrationSchema, getUgxGame, getTransportPreference, UGX_GAMES } from "./event-registration";
+import { EventRegistrationSchema, getEventRegistrationSchema, getHncChoices, getUgxGame, getTransportPreference, UGX_GAMES } from "./event-registration";
 import { RegistrationSchema } from "./registration";
 import { VolunteerRegistrationSchema } from "./volunteer-registration";
 import { isHncOrUgx } from "../events";
@@ -13,6 +13,7 @@ const required = {
   city: " Islamabad ",
   transport: "no",
 };
+const hncChoices = { registrationType: "Participant", socials: "No" };
 
 test("shared contact fields are normalized", () => {
   const data = EventRegistrationSchema.parse(required);
@@ -28,12 +29,12 @@ test("both events require an explicit transport answer and retain unanswered his
   for (const slug of ["ugx", "hack-n-connect"]) {
     const schema = getEventRegistrationSchema(slug);
     for (const transport of ["yes", "no"]) {
-      const data = schema.parse({ ...required, game: "FC26", transport });
+      const data = schema.parse({ ...required, ...hncChoices, game: "FC26", transport });
       assert.equal(data.transport, transport);
       assert.equal(getTransportPreference({ transport }), transport === "yes" ? "Yes" : "No");
     }
     for (const transport of [undefined, "", "maybe", true, false]) {
-      const result = schema.safeParse({ ...required, game: "FC26", transport });
+      const result = schema.safeParse({ ...required, ...hncChoices, game: "FC26", transport });
       assert.equal(result.success, false);
       if (!result.success) assert.ok(result.error.flatten().fieldErrors.transport);
     }
@@ -46,7 +47,7 @@ test("UGX requires one of the two games; HNC does not require a game", () => {
   const empty = ugx.safeParse({});
   assert.equal(empty.success, false);
   if (!empty.success) assert.ok(empty.error.flatten().fieldErrors.game);
-  assert.equal(getEventRegistrationSchema("hack-n-connect").safeParse(required).success, true);
+  assert.equal(getEventRegistrationSchema("hack-n-connect").safeParse({ ...required, ...hncChoices }).success, true);
   for (const game of UGX_GAMES) {
     assert.equal(ugx.parse({ ...required, game }).game, game);
     assert.equal(getUgxGame({ game }), game);
@@ -57,6 +58,20 @@ test("UGX requires one of the two games; HNC does not require a game", () => {
     if (!result.success) assert.ok(result.error.flatten().fieldErrors.game);
   }
   for (const formData of [null, {}, { game: "Other" }]) assert.equal(getUgxGame(formData), null);
+});
+
+test("HNC requires both choices, UGX ignores them, and older entries have blank choices", () => {
+  const schema = getEventRegistrationSchema("hack-n-connect");
+  for (const [field, invalid] of [["registrationType", "Guest"], ["socials", "Maybe"]]) {
+    for (const value of [undefined, "", invalid]) {
+      const result = schema.safeParse({ ...required, ...hncChoices, [field]: value });
+      assert.equal(result.success, false);
+      if (!result.success) assert.ok(result.error.flatten().fieldErrors[field as keyof typeof hncChoices]);
+    }
+  }
+  const ugx = getEventRegistrationSchema("ugx").parse({ ...required, ...hncChoices, game: "FC26" });
+  assert.deepEqual(getHncChoices(ugx), {});
+  assert.deepEqual(getHncChoices({ transport: "no" }), {});
 });
 
 test("ambassador and university can be omitted, blank or supplied", () => {

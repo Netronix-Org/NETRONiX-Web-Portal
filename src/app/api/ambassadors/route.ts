@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { issueAmbassadorPassword } from "@/lib/ambassador-credentials";
 import { prisma } from "@/lib/prisma";
 import { AmbassadorSchema } from "@/lib/validation/ambassador";
 import { AMBASSADOR_CAMPAIGN, isAmbassadorCallOpen } from "@/lib/ambassadors";
@@ -36,14 +38,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await prisma.ambassadorApplication.createMany({
-      data: { ...parsed.data, campaign: AMBASSADOR_CAMPAIGN.id },
+    const id = randomUUID();
+    const { password, passwordHash, issuedPassword } = await issueAmbassadorPassword(id);
+    const [application] = await prisma.ambassadorApplication.createManyAndReturn({
+      data: { ...parsed.data, id, passwordHash, issuedPassword, campaign: AMBASSADOR_CAMPAIGN.id },
       skipDuplicates: true,
+      select: { code: true },
     });
-    if (result.count === 0) {
-      return NextResponse.json({ message: "An application with this CNIC has already been received for HNC & UGX. For changes, contact the event team below." }, { status: 409 });
+    if (!application) {
+      return NextResponse.json({ message: "An application with this CNIC or email has already been received for HNC & UGX. For changes, contact the event team below." }, { status: 409 });
     }
-    return NextResponse.json({ message: "Your ambassador application has been received." }, { status: 201 });
+    return NextResponse.json(
+      { message: "Your ambassador application has been received.", code: application.code, password },
+      { status: 201, headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch {
     // Do not log the Prisma error: it can contain the applicant's CNIC and phone.
     return NextResponse.json({ message: "We couldn't save your application. Your details are still here; please try again." }, { status: 503 });

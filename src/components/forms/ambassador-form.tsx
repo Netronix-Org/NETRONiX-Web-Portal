@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Loader2 } from "lucide-react";
+import { CopyValueButton } from "@/components/ui/copy-value-button";
 import { AmbassadorSchema, type AmbassadorInput } from "@/lib/validation/ambassador";
 import type { z } from "zod";
 
@@ -18,7 +19,7 @@ const FIELDS = [
 ] as const;
 
 export function AmbassadorForm() {
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<{ code?: number; password?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, setError: setFieldError, formState: { errors, isSubmitting } } = useForm<AmbassadorInput, unknown, z.output<typeof AmbassadorSchema>>({
     resolver: zodResolver(AmbassadorSchema),
@@ -43,7 +44,7 @@ export function AmbassadorForm() {
         setError(data.message || "We couldn't save your application. Please try again.");
         return;
       }
-      setSubmitted(true);
+      setSubmitted({ code: data.code, password: data.password });
     } catch {
       setError("Couldn't connect. Check your connection and try again; your details are still here.");
     }
@@ -55,13 +56,29 @@ export function AmbassadorForm() {
         <CheckCircle2 size={36} className="mb-6 text-[#60A5FA]" aria-hidden="true" />
         <h2 className="font-heading text-3xl font-semibold">You&apos;re on the list.</h2>
         <p className="mt-4 text-sm leading-relaxed text-[#C4D1E5]">Your ambassador application for HNC &amp; UGX has been received. The NETRONiX team will contact you on the phone number you provided.</p>
-        <Link href="/#ambassadors" className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-white underline underline-offset-4">Back to NETRONiX<ArrowUpRight size={16} aria-hidden="true" /></Link>
+        {submitted.code && (
+          <div className="mt-6 rounded-xl border border-white/15 p-4">
+            <p className="text-sm text-[#C4D1E5]">Your ambassador code</p>
+            <p className="mt-1 font-mono text-3xl font-semibold tracking-wider text-white">{submitted.code}</p>
+            <p className="mt-3 text-sm leading-relaxed text-[#C4D1E5]">Save this code and share it with participants to enter when they register for HNC or UGX.</p>
+            <div className="mt-3"><CopyValueButton value={String(submitted.code)} label="code" /></div>
+          </div>
+        )}
+        {submitted.password && (
+          <div className="mt-4 rounded-xl border border-white/15 p-4">
+            <p className="text-sm text-[#C4D1E5]">Your portal password</p>
+            <p className="my-2 font-mono text-2xl font-semibold tracking-wider text-white">{submitted.password}</p>
+            <p className="mb-3 text-sm leading-relaxed text-[#C4D1E5]">Save this password now. Sign in with the email address you entered and keep your password private.</p>
+            <CopyValueButton value={submitted.password} label="password" />
+          </div>
+        )}
+        <Link href="/ambassadors/portal" className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-white underline underline-offset-4">Open ambassador portal<ArrowUpRight size={16} aria-hidden="true" /></Link>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} noValidate className="rounded-2xl border border-white/10 bg-[#101010] p-6 sm:p-9" aria-labelledby="application-heading">
+    <form method="post" action="/api/ambassadors" onSubmit={handleSubmit(submit)} noValidate className="rounded-2xl border border-white/10 bg-[#101010] p-6 sm:p-9" aria-labelledby="application-heading">
       <h2 id="application-heading" className="font-heading text-2xl font-semibold">Become an ambassador</h2>
       <p className="mt-2 text-sm leading-relaxed text-[#B3B3B3]">One application. Both events. All fields are required.</p>
       <fieldset disabled={isSubmitting} className="mt-8 flex min-w-0 flex-col gap-5 disabled:opacity-70">

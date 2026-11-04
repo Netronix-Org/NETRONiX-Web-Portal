@@ -12,9 +12,29 @@ plus the existing admin session configuration. Add its private table once:
 
 ```bash
 pnpm exec prisma db execute --file supabase/ambassador-applications.sql
+pnpm exec prisma db execute --file supabase/ambassador-codes.sql
+pnpm exec prisma db execute --file supabase/ambassador-portal.sql
+pnpm exec prisma db execute --file supabase/participant-portal.sql
 pnpm exec prisma db execute --file supabase/event-registration-fields.sql
 pnpm exec prisma generate
+pnpm exec tsx scripts/issue-ambassador-passwords.ts
+pnpm exec tsx scripts/setup-payment-storage.ts
 ```
+
+Ambassadors sign in at `/ambassadors/portal` with their application email and
+issued password. Executive admins can reveal passwords in the Ambassadors tab.
+Use the same `AMBASSADOR_CREDENTIAL_SECRET` (or `ADMIN_SESSION_SECRET` if the
+dedicated secret is unset) in the password issuance environment and the deployed
+site. Keep this secret stable so previously issued passwords can still be
+revealed. Re-run password issuance after deployment to cover applications received
+while an older version of the site was running.
+
+The participant portal at `/participants/portal` uses the same server secret
+for credential issuance and Brevo for delivery. Registrants can request one
+password reminder per email address on the sign-in page. Set `NEXT_PUBLIC_SUPABASE_URL`
+and the server-only `SUPABASE_SERVICE_ROLE_KEY` in the deployed environment.
+The Storage setup command creates the private `participant-payment-proofs`
+bucket. Payment status is reviewed in the executive admin's event submissions.
 
 The SQL is additive and safe to re-run. It enables RLS and denies the Supabase
 public roles access. Executive admins can view and export applications under
