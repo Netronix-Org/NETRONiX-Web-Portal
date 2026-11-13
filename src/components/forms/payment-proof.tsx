@@ -1,17 +1,17 @@
 "use client";
 
 import { useId, useRef, useState, useTransition, type FormEvent } from "react";
-import { Download, Eye, Trash2 } from "lucide-react";
+import { Check, Download, Eye, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { PAYMENT_IMAGE_TYPES, PAYMENT_MAX_BYTES } from "@/lib/participants";
+import { PAYMENT_COLORS, PAYMENT_IMAGE_TYPES, PAYMENT_LABELS, PAYMENT_MAX_BYTES, type PaymentStatus } from "@/lib/participants";
 
-type PaymentProofProps = {
+interface PaymentProofProps {
   id: string;
-  paid: boolean;
-} & (
-  | { hasProof: boolean; proofPath?: never }
-  | { proofPath: string | null; hasProof?: never }
-);
+  status: PaymentStatus;
+  proofPath: string | null;
+  ambassadorVerified: boolean;
+  mode: "participant" | "ambassador";
+}
 
 const actionButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93C5FD]";
 const button = `${actionButton} border-white/20 bg-white/5 text-white hover:bg-white/10`;
@@ -59,16 +59,17 @@ export function PaymentScreenshot({ id, hasProof }: { id: string; hasProof: bool
   );
 }
 
-export function PaymentProof({ id, paid, hasProof, proofPath }: PaymentProofProps) {
+export function PaymentProof({ id, status, proofPath, ambassadorVerified, mode }: PaymentProofProps) {
   const router = useRouter();
-  const [action, setAction] = useState<"upload" | "remove" | null>(null);
+  const [action, setAction] = useState<"upload" | "remove" | "verify" | null>(null);
   const [refreshing, startRefresh] = useTransition();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const endpoint = `/api/participants/registrations/${id}/payment`;
   const busy = action !== null || refreshing;
-  const canEdit = proofPath !== undefined && !paid;
-  const screenshotUploaded = hasProof ?? Boolean(proofPath);
+  const canEdit = mode === "participant" && status === "pending";
+  const canVerify = mode === "ambassador" && status === "pending" && proofPath && !ambassadorVerified;
+  const screenshotUploaded = Boolean(proofPath);
 
   async function submitProof(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,16 +124,49 @@ export function PaymentProof({ id, paid, hasProof, proofPath }: PaymentProofProp
     }
   }
 
+  async function verifyProof() {
+    setAction("verify");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedProofPath: proofPath }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        setError(result?.message ?? "Couldn't verify the screenshot. Try again.");
+        return;
+      }
+      startRefresh(() => router.refresh());
+    } catch {
+      setError("Couldn't verify the screenshot. Try again.");
+    } finally {
+      setAction(null);
+    }
+  }
+
   return (
     <section className="border-t border-white/15 pt-4" aria-label="Payment">
       <div className="flex flex-wrap items-center gap-3">
-        <span className={`rounded-full border px-3 py-1 text-xs font-medium ${paid ? "border-green-400/30 text-green-300" : "border-amber-400/30 text-amber-200"}`}>
-          {paid ? "Paid" : "Payment pending"}
+        <span className={`rounded-full border border-current/30 px-3 py-1 text-xs font-medium ${PAYMENT_COLORS[status]}`}>
+          {PAYMENT_LABELS[status]}
         </span>
+        {ambassadorVerified && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 px-3 py-1 text-xs font-medium text-sky-300">
+            <Check size={14} aria-hidden="true" /> Verified by ambassador
+          </span>
+        )}
         <PaymentScreenshot id={id} hasProof={screenshotUploaded} />
         {canEdit && proofPath && (
           <button type="button" onClick={removeProof} disabled={busy} className={`${actionButton} border-rose-300/25 text-rose-300 hover:bg-rose-400/10`}>
             <Trash2 size={16} aria-hidden="true" /> {action === "remove" ? "Removing…" : "Remove screenshot"}
+          </button>
+        )}
+        {canVerify && (
+          <button type="button" onClick={verifyProof} disabled={busy} className={`${actionButton} border-sky-300/30 bg-sky-300/10 text-sky-200 hover:bg-sky-300/20`}>
+            <Check size={16} aria-hidden="true" /> {action === "verify" ? "Verifying…" : "Verify payment as ambassador"}
           </button>
         )}
       </div>

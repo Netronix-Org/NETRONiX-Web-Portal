@@ -12,8 +12,15 @@ REVOKE ALL ON TABLE public.participant_accounts FROM PUBLIC, anon, authenticated
 ALTER TABLE public.participant_accounts
   ADD COLUMN IF NOT EXISTS password_reminder_requested_at timestamptz(3);
 
+DO $$ BEGIN
+  CREATE TYPE public."PaymentDisposition" AS ENUM ('refunded', 'rejected');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 ALTER TABLE public.registrations
   ADD COLUMN IF NOT EXISTS payment_paid boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS payment_disposition public."PaymentDisposition",
+  ADD COLUMN IF NOT EXISTS ambassador_verified_at timestamptz(3),
   ADD COLUMN IF NOT EXISTS payment_proof_path text;
 
 CREATE INDEX IF NOT EXISTS registrations_email_idx ON public.registrations(email);

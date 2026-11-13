@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { csvCell } from "@/lib/csv";
+import { getPaymentStatus, PAYMENT_LABELS } from "@/lib/participants";
 import { registrationAmbassadorNames, registrationRosterQuery } from "@/lib/admin-roster-query";
 import { skillLabel, isHncOrUgx } from "@/lib/events";
 import { getAmbassadorCode, getHncChoices, getUgxGame, getTransportPreference } from "@/lib/validation/event-registration";
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
         [
           "Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "Ambassador Code", "University", "Transport",
           ...(isUgx ? ["Game"] : ["Registration type", "Socials opt-in"]),
-          "Payment status", "Admin Notes",
+          "Payment status", "Ambassador verified at (UTC)", "Admin Notes",
         ].map(csvCell).join(","),
         ...registrations.map((reg) => {
           const { registrationType, socials } = getHncChoices(reg.formData);
@@ -128,7 +129,7 @@ export async function GET(req: NextRequest) {
             reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, ambassadorNames[Number(code)] ?? reg.ambassador, code, reg.university,
             getTransportPreference(reg.formData),
             ...(isUgx ? [getUgxGame(reg.formData)] : [registrationType, socials]),
-            reg.paymentPaid ? "Paid" : "Payment pending", reg.adminNotes,
+            PAYMENT_LABELS[getPaymentStatus(reg)], reg.ambassadorVerifiedAt?.toISOString(), reg.adminNotes,
           ].map(csvCell).join(",");
         }),
       ].join("\r\n")
