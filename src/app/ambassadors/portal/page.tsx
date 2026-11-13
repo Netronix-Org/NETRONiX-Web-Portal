@@ -9,6 +9,7 @@ import { PortalEventStrip } from "@/components/ui/portal-event-strip";
 import { CopyValueButton } from "@/components/ui/copy-value-button";
 import { getAmbassadorSession } from "@/lib/ambassador-session";
 import { prisma } from "@/lib/prisma";
+import { getPaymentStatus } from "@/lib/participants";
 import { getHncChoices, getTransportPreference, getUgxGame } from "@/lib/validation/event-registration";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function AmbassadorPortalPage() {
     select: {
       id: true, fullName: true, email: true, phone: true, cnic: true, city: true,
       university: true, ambassador: true, isPreRegistration: true, createdAt: true, formData: true,
-      paymentPaid: true, paymentProofPath: true,
+      paymentPaid: true, paymentDisposition: true, ambassadorVerifiedAt: true, paymentProofPath: true,
       event: { select: { slug: true, title: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -108,7 +109,7 @@ export default async function AmbassadorPortalPage() {
                         ))}
                       </dl>
                       <div className="px-2 pb-5">
-                        <PaymentProof id={registration.id} paid={registration.paymentPaid} hasProof={Boolean(registration.paymentProofPath)} />
+                        <PaymentProof id={registration.id} status={getPaymentStatus(registration)} proofPath={registration.paymentProofPath} ambassadorVerified={Boolean(registration.ambassadorVerifiedAt)} mode="ambassador" />
                       </div>
                     </details>
                   );

@@ -5,7 +5,7 @@ import { getAmbassadorSession } from "@/lib/ambassador-session";
 import { getAuthenticatedAdmin } from "@/lib/auth";
 import { getParticipantEmail } from "@/lib/participant-session";
 import { readPaymentImage, paymentStorageFetch, removePaymentProof } from "@/lib/payment-storage";
-import { PARTICIPANT_EVENT_SLUGS, PAYMENT_BUCKET, PAYMENT_IMAGE_TYPES } from "@/lib/participants";
+import { getPaymentStatus, PARTICIPANT_EVENT_SLUGS, PAYMENT_BUCKET, PAYMENT_IMAGE_TYPES, PAYMENT_STATUSES } from "@/lib/participants";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAmbassadorCode } from "@/lib/validation/event-registration";
@@ -13,6 +13,7 @@ import { getAmbassadorCode } from "@/lib/validation/event-registration";
 export const maxDuration = 45;
 type Context = { params: Promise<{ id: string }> };
 const event = { slug: { in: PARTICIPANT_EVENT_SLUGS } };
+const pending = { paymentPaid: false, paymentDisposition: null } as const;
 const privateHeaders = { "Cache-Control": "private, no-store" };
 const notFound = () => NextResponse.json({ message: "Payment record not found." }, { status: 404 });
 
@@ -60,10 +61,12 @@ export async function POST(req: NextRequest, { params }: Context) {
     const owner = { id, email: { equals: email, mode: "insensitive" as const }, event };
     const registration = await prisma.registration.findFirst({
       where: owner,
-      select: { paymentPaid: true, paymentProofPath: true },
+      select: { paymentPaid: true, paymentDisposition: true, paymentProofPath: true },
     });
     if (!registration) return notFound();
-    if (registration.paymentPaid) return NextResponse.json({ message: "This payment has already been marked paid." }, { status: 409 });
+    if (getPaymentStatus(registration) !== "pending") {
+      return NextResponse.json({ message: "NETRONiX has already reviewed this payment." }, { status: 409 });
+    }
 
     const limit = checkRateLimit(`participant-proof:${email}`, { limit: 12, windowMs: 60 * 60 * 1000 });
     if (!limit.allowed) return NextResponse.json({ message: "Too many uploads. Try again later." }, { status: 429 });
@@ -81,8 +84,8 @@ export async function POST(req: NextRequest, { params }: Context) {
     let updated: { count: number };
     try {
       updated = await prisma.registration.updateMany({
-        where: { ...owner, paymentPaid: false, paymentProofPath: registration.paymentProofPath },
-        data: { paymentProofPath: path },
+        where: { ...owner, ...pending, paymentProofPath: registration.paymentProofPath },
+        data: { paymentProofPath: path, ambassadorVerifiedAt: null },
       });
     } catch (error) {
       // A lost database response may have committed the update. Check before deleting the object.
@@ -117,16 +120,18 @@ export async function DELETE(req: NextRequest, { params }: Context) {
     const owner = { id, email: { equals: email, mode: "insensitive" as const }, event };
     const registration = await prisma.registration.findFirst({
       where: owner,
-      select: { paymentPaid: true, paymentProofPath: true },
+      select: { paymentPaid: true, paymentDisposition: true, paymentProofPath: true },
     });
     if (!registration) return notFound();
-    if (registration.paymentPaid) return NextResponse.json({ message: "This payment has already been marked paid." }, { status: 409 });
+    if (getPaymentStatus(registration) !== "pending") {
+      return NextResponse.json({ message: "NETRONiX has already reviewed this payment." }, { status: 409 });
+    }
     if (!registration.paymentProofPath) return new NextResponse(null, { status: 204, headers: privateHeaders });
 
     const { expectedProofPath } = parsed.data;
     const removed = await prisma.registration.updateMany({
-      where: { ...owner, paymentPaid: false, paymentProofPath: expectedProofPath },
-      data: { paymentProofPath: null },
+      where: { ...owner, ...pending, paymentProofPath: expectedProofPath },
+      data: { paymentProofPath: null, ambassadorVerifiedAt: null },
     });
     if (!removed.count) {
       return NextResponse.json({ message: "The payment record changed. Refresh the page and try again." }, { status: 409 });
@@ -138,10 +143,41 @@ export async function DELETE(req: NextRequest, { params }: Context) {
   }
 }
 
-const PaymentUpdate = z.object({
-  paid: z.boolean(),
-  expectedProofPath: z.string().max(120).nullable(),
-});
+export async function PUT(req: NextRequest, { params }: Context) {
+  const { id } = await params;
+  try {
+    const ambassador = await getAmbassadorSession();
+    if (!ambassador) return NextResponse.json({ message: "Sign in as an ambassador to verify a screenshot." }, { status: 401 });
+    const parsed = ProofRemoval.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ message: "A payment screenshot is required." }, { status: 400 });
+
+    const referral = { id, event, formData: { path: ["ambassadorCode"], equals: String(ambassador.code) } };
+    const currentProof = { ...referral, ...pending, paymentProofPath: parsed.data.expectedProofPath };
+    const updated = await prisma.registration.updateMany({
+      where: { ...currentProof, ambassadorVerifiedAt: null },
+      data: { ambassadorVerifiedAt: new Date() },
+    });
+    if (!updated.count) {
+      const registration = await prisma.registration.findFirst({
+        where: referral,
+        select: { paymentPaid: true, paymentDisposition: true, paymentProofPath: true, ambassadorVerifiedAt: true },
+      });
+      if (!registration) return notFound();
+      if (getPaymentStatus(registration) !== "pending" || registration.paymentProofPath !== parsed.data.expectedProofPath || !registration.ambassadorVerifiedAt) {
+        return NextResponse.json({ message: "The payment record changed. Refresh the page and try again." }, { status: 409 });
+      }
+    }
+    return new NextResponse(null, { status: 204, headers: privateHeaders });
+  } catch {
+    return NextResponse.json({ message: "Couldn't verify the screenshot. Try again." }, { status: 503 });
+  }
+}
+
+const ExpectedProofPath = z.object({ expectedProofPath: z.string().max(120).nullable() });
+const PaymentUpdate = z.union([
+  ExpectedProofPath.extend({ status: z.enum(PAYMENT_STATUSES) }),
+  ExpectedProofPath.extend({ paid: z.boolean() }),
+]);
 
 export async function PATCH(req: NextRequest, { params }: Context) {
   const { id } = await params;
@@ -151,12 +187,14 @@ export async function PATCH(req: NextRequest, { params }: Context) {
     if (admin.role !== "ADMIN") return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
     const parsed = PaymentUpdate.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ message: "Invalid payment status update." }, { status: 400 });
+    const status = "status" in parsed.data ? parsed.data.status : parsed.data.paid ? "paid" : "pending";
+    const paid = status === "paid";
     const result = await prisma.registration.updateMany({
       where: { id, event, paymentProofPath: parsed.data.expectedProofPath },
-      data: { paymentPaid: parsed.data.paid },
+      data: { paymentPaid: paid, paymentDisposition: status === "refunded" || status === "rejected" ? status : null },
     });
     if (!result.count) return NextResponse.json({ message: "The payment record changed. Refresh the list and try again." }, { status: 409 });
-    return NextResponse.json({ paid: parsed.data.paid }, { headers: privateHeaders });
+    return NextResponse.json({ paid, status }, { headers: privateHeaders });
   } catch {
     return NextResponse.json({ message: "Couldn't update the payment status." }, { status: 503 });
   }

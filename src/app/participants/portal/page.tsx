@@ -7,7 +7,7 @@ import { BrandLogo } from "@/components/ui/brand-logo";
 import { PortalEventStrip } from "@/components/ui/portal-event-strip";
 import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
 import { getParticipantEmail } from "@/lib/participant-session";
-import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
+import { getPaymentStatus, PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
 import { prisma } from "@/lib/prisma";
 import { getAmbassadorCode, getHncChoices, getTransportPreference, getUgxGame } from "@/lib/validation/event-registration";
 
@@ -30,7 +30,8 @@ export default async function ParticipantPortalPage() {
     select: {
       id: true, fullName: true, email: true, phone: true, cnic: true, city: true, university: true,
       ambassador: true, formData: true, status: true, isPreRegistration: true, createdAt: true,
-      paymentPaid: true, paymentProofPath: true, event: { select: { slug: true, title: true } },
+      paymentPaid: true, paymentDisposition: true, ambassadorVerifiedAt: true, paymentProofPath: true,
+      event: { select: { slug: true, title: true } },
     },
     orderBy: { createdAt: "desc" },
   }) : [];
@@ -100,7 +101,7 @@ export default async function ParticipantPortalPage() {
                         ))}
                       </dl>
                     </details>
-                    <PaymentProof id={registration.id} paid={registration.paymentPaid} proofPath={registration.paymentProofPath} />
+                    <PaymentProof id={registration.id} status={getPaymentStatus(registration)} proofPath={registration.paymentProofPath} ambassadorVerified={Boolean(registration.ambassadorVerifiedAt)} mode="participant" />
                   </article>
                 );
               })}

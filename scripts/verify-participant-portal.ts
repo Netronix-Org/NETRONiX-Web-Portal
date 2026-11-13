@@ -141,6 +141,20 @@ async function main() {
 
     assert.equal((await call(endpoint, { headers: ambassadorHeaders })).status, 200);
     assert.equal((await upload(ambassadorHeaders)).status, 401);
+    const verify = (headers: HeadersInit, expectedProofPath: string | null = proofPath, registrationId = own.id) =>
+      call(`/api/participants/registrations/${registrationId}/payment`, {
+        method: "PUT", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedProofPath }),
+      });
+    assert.equal((await verify(participant)).status, 401);
+    assert.equal((await verify(ambassadorHeaders, proofPath, other.id)).status, 404);
+    assert.equal((await verify(ambassadorHeaders, null)).status, 400);
+    assert.equal((await verify(ambassadorHeaders)).status, 204);
+    assert.equal((await verify(ambassadorHeaders)).status, 204);
+    const verified = await prisma.registration.findUniqueOrThrow({ where: { id: own.id } });
+    assert.ok(verified.ambassadorVerifiedAt);
+    assert.equal(verified.paymentPaid, false);
+    assert.equal(verified.paymentDisposition, null);
     assert.equal((await remove({})).status, 401);
     assert.equal((await remove(ambassadorHeaders)).status, 401);
     assert.equal((await remove(stranger)).status, 404);
@@ -156,6 +170,17 @@ async function main() {
       assert.equal((await update(manager, true)).status, 403);
     }
     assert.equal((await update(executive, true, null)).status, 409);
+    for (const status of ["rejected", "refunded"]) {
+      const setDisposition = (headers: HeadersInit): Promise<Response> => call(endpoint, {
+        method: "PATCH", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ status, expectedProofPath: proofPath }),
+      });
+      assert.equal((await setDisposition(ambassadorHeaders)).status, 401);
+      assert.equal((await setDisposition(executive)).status, 200);
+      assert.equal((await prisma.registration.findUniqueOrThrow({ where: { id: own.id } })).paymentDisposition, status);
+      assert.equal((await verify(ambassadorHeaders)).status, 409);
+      assert.equal((await upload(participant)).status, 409);
+    }
     assert.equal((await update(executive, true)).status, 200);
     assert.equal((await prisma.registration.findUniqueOrThrow({ where: { id: own.id } })).paymentPaid, true);
     assert.equal((await upload(participant)).status, 409);
@@ -164,15 +189,36 @@ async function main() {
     assert.equal((await upload(participant)).status, 200);
     const replacement = await prisma.registration.findUniqueOrThrow({ where: { id: own.id } });
     assert.ok(!replacement.paymentPaid && replacement.paymentProofPath && replacement.paymentProofPath !== proofPath);
+    assert.equal(replacement.ambassadorVerifiedAt, null);
+    assert.equal((await verify(ambassadorHeaders)).status, 409);
+    assert.equal((await verify(ambassadorHeaders, replacement.paymentProofPath)).status, 204);
     assert.equal((await remove(participant)).status, 409, "A stale removal must not delete a newer screenshot.");
     assert.equal((await remove(participant, replacement.paymentProofPath)).status, 204);
+    assert.equal((await prisma.registration.findUniqueOrThrow({ where: { id: own.id } })).ambassadorVerifiedAt, null);
     assert.equal((await call(endpoint, { headers: participant })).status, 404);
     assert.equal((await call(downloadUrl, { headers: executive })).status, 404);
     assert.ok(!(await paymentStorageFetch(`object/authenticated/${PAYMENT_BUCKET}/${replacement.paymentProofPath}`)).ok);
     assert.equal((await remove(participant, replacement.paymentProofPath)).status, 204, "Removal can be retried safely.");
     assert.equal((await upload(participant)).status, 200);
 
-    console.log("PASS: shared login, executive password access, referral isolation, upload validation, private Supabase access, executive review, and screenshot removal and replacement.");
+    const deleteRegistration = (id: string, headers?: HeadersInit) =>
+      call(`/api/admin/registrations?id=${id}`, { method: "DELETE", headers });
+    const finalProof = (await prisma.registration.findUniqueOrThrow({ where: { id: own.id } })).paymentProofPath;
+    assert.ok(finalProof);
+    assert.equal((await deleteRegistration(own.id)).status, 401);
+    assert.equal((await deleteRegistration(own.id, participant)).status, 401);
+    if (manager) assert.equal((await deleteRegistration(own.id, manager)).status, 403);
+    assert.equal((await deleteRegistration(own.id, executive)).status, 204);
+    assert.equal(await prisma.registration.count({ where: { id: own.id } }), 0);
+    assert.equal((await call(endpoint, { headers: executive })).status, 404);
+    assert.ok(!(await paymentStorageFetch(`object/authenticated/${PAYMENT_BUCKET}/${finalProof}`)).ok);
+    assert.equal(await prisma.registration.count({ where: { id: second.id } }), 1);
+    const remainingRoster = await (await call("/participants/portal", { headers: participant })).text();
+    assert.ok(remainingRoster.includes(secondName) && !remainingRoster.includes(ownName));
+    assert.equal((await deleteRegistration(second.id, executive)).status, 204);
+    assert.equal((await deleteRegistration(second.id, executive)).status, 404);
+
+    console.log("PASS: payment status, independent ambassador verification, screenshot management, and executive deletion.");
   } finally {
     const where = { id: { in: registrationIds } };
     const proofs = await prisma.registration.findMany({ where, select: { paymentProofPath: true } });

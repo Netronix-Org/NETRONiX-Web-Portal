@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Registration } from "@prisma/client";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { getAmbassadorCode, getHncChoices, getTransportPreference, getUgxGame, UGX_GAMES } from "@/lib/validation/event-registration";
 import { PaymentScreenshot } from "@/components/forms/payment-proof";
+import { getPaymentStatus, PAYMENT_COLORS, PAYMENT_LABELS, PAYMENT_STATUSES } from "@/lib/participants";
 import { PaymentStatusSelect } from "./payment-status-select";
 import { RegistrationPassword } from "./registration-password";
 import {
@@ -14,11 +16,11 @@ import {
 
 type ParticipantRow = Pick<Registration,
   "id" | "fullName" | "phone" | "email" | "cnic" | "city" | "university" | "ambassador" |
-  "formData" | "paymentPaid" | "paymentProofPath" | "isPreRegistration" | "adminNotes"
+  "formData" | "paymentPaid" | "paymentDisposition" | "paymentProofPath" | "isPreRegistration" | "adminNotes"
 > & { createdAt: string };
 
 type ParticipantPage = {
-  registrations: ParticipantRow[];
+  registrations: (ParticipantRow & { ambassadorVerifiedAt: string | null })[];
   ambassadorNames: Record<string, string>;
   total: number;
   pageSize: number;
@@ -30,11 +32,41 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
   eventTitle: string;
   canReviewPayments: boolean;
 }) {
+  const router = useRouter();
   const roster = useRoster<ParticipantPage>("/api/admin/registrations", new URLSearchParams({ eventId }).toString());
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteFeedback, setDeleteFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const ugx = eventSlug === "ugx";
   const choices = ugx ? UGX_GAMES : ["Participant", "Observer"];
   const data = roster.data;
+
+  async function deleteRegistration(row: ParticipantRow) {
+    if (deleting || !window.confirm(
+      `Permanently delete ${row.fullName}’s registration for ${eventTitle}? Any uploaded payment screenshot will also be removed.`,
+    )) return;
+
+    setDeleting(row.id);
+    setDeleteFeedback(null);
+    try {
+      const response = await fetch(`/api/admin/registrations?id=${encodeURIComponent(row.id)}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 404) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message ?? "Couldn't delete the registration. Try again.");
+      }
+      setExpanded((current) => current === row.id ? null : current);
+      setDeleteFeedback({
+        message: response.ok ? `Deleted ${row.fullName}’s registration.` : "This registration is already gone.",
+        error: false,
+      });
+      roster.refresh();
+      router.refresh();
+    } catch (error) {
+      setDeleteFeedback({ message: error instanceof Error ? error.message : "Couldn't delete the registration. Try again.", error: true });
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <div className="grid min-w-0 gap-4">
@@ -48,7 +80,8 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
         <RosterField label="Ambassador" placeholder="Name or four-digit code" value={roster.filters.ambassador ?? ""} onChange={(value) => roster.change("ambassador", value)} />
         <RosterField label="University" placeholder="Any university" value={roster.filters.university ?? ""} onChange={(value) => roster.change("university", value)} />
         <RosterField label="City" placeholder="Any city" value={roster.filters.city ?? ""} onChange={(value) => roster.change("city", value)} />
-        <RosterField label="Payment status" options={[["", "All payments"], ["paid", "Paid"], ["pending", "Payment pending"]]} value={roster.filters.payment ?? ""} onChange={(value) => roster.change("payment", value)} />
+        <RosterField label="Payment status" options={[["", "All payments"], ...PAYMENT_STATUSES.map((status) => [status, PAYMENT_LABELS[status]] as const)]} value={roster.filters.payment ?? ""} onChange={(value) => roster.change("payment", value)} />
+        <RosterField label="Ambassador verification" options={[["", "Any"], ["verified", "Verified by ambassador"], ["unverified", "Unverified by ambassador"]]} value={roster.filters.ambassadorVerification ?? ""} onChange={(value) => roster.change("ambassadorVerification", value)} />
         <RosterField label="Screenshot" options={[["", "Any screenshot status"], ["uploaded", "Uploaded"], ["missing", "Missing"]]} value={roster.filters.proof ?? ""} onChange={(value) => roster.change("proof", value)} />
         <RosterField label={ugx ? "Game" : "Registration type"} options={[["", "All"], ...choices.map((choice) => [choice, choice] as const)]} value={roster.filters.choice ?? ""} onChange={(value) => roster.change("choice", value)} />
         <RosterField label="Transport" options={[["", "Any preference"], ["yes", "Yes"], ["no", "No"]]} value={roster.filters.transport ?? ""} onChange={(value) => roster.change("transport", value)} />
@@ -57,6 +90,11 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
 
       {roster.loading && <p role="status" className="py-6 text-sm text-[#B3B3B3]">Loading submissions…</p>}
       {roster.error && <p role="alert" className="py-6 text-sm text-[#FFB3BB]">{roster.error}</p>}
+      {deleteFeedback && (
+        <p role={deleteFeedback.error ? "alert" : "status"} className={`text-sm ${deleteFeedback.error ? "text-[#FFB3BB]" : "text-[#B3B3B3]"}`}>
+          {deleteFeedback.message}
+        </p>
+      )}
       {data && (
         <>
           {data.total === 0 ? (
@@ -68,6 +106,7 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                 <RosterHeading labels={["Participant", "University / city", "Ambassador", "Payment", "Record"]} />
                 {data.registrations.map((row) => {
                   const open = expanded === row.id;
+                  const paymentStatus = getPaymentStatus(row);
                   const code = getAmbassadorCode(row.formData);
                   const ambassador = (code && data.ambassadorNames[code]) || row.ambassador;
                   const hncChoices = getHncChoices(row.formData);
@@ -96,11 +135,12 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                         <div className="min-w-0 self-end lg:self-auto">
                           <p className="mb-1 text-xs text-[#B3B3B3] lg:sr-only">Payment</p>
                           {canReviewPayments ? (
-                            <PaymentStatusSelect id={row.id} name={row.fullName} paid={row.paymentPaid} proofPath={row.paymentProofPath} onPaidChange={roster.refresh} />
+                            <PaymentStatusSelect id={row.id} name={row.fullName} status={paymentStatus} proofPath={row.paymentProofPath} onStatusChange={roster.refresh} />
                           ) : (
-                            <p className={row.paymentPaid ? "text-sm text-green-300" : "text-sm text-amber-200"}>{row.paymentPaid ? "Paid" : "Payment pending"}</p>
+                            <p className={`text-sm ${PAYMENT_COLORS[paymentStatus]}`}>{PAYMENT_LABELS[paymentStatus]}</p>
                           )}
                           <p className="mt-1 text-xs text-[#B3B3B3]">{row.paymentProofPath ? "Screenshot uploaded" : "No screenshot"}</p>
+                          {row.ambassadorVerifiedAt && <p className="mt-1 text-xs text-sky-300">Verified by ambassador</p>}
                         </div>
                         <button type="button" aria-expanded={open} aria-label={`${open ? "Hide" : "View"} details for ${row.fullName}`} onClick={() => setExpanded(open ? null : row.id)} className={`${rosterButton} justify-self-end self-end lg:justify-self-start lg:self-auto`}>
                           {open ? "Hide details" : "Details"} <ChevronDown size={14} aria-hidden="true" className={open ? "rotate-180" : undefined} />
@@ -119,6 +159,15 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-3">
                               <PaymentScreenshot id={row.id} hasProof={Boolean(row.paymentProofPath)} />
                               <RegistrationPassword endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
+                              <button
+                                type="button"
+                                disabled={deleting !== null}
+                                onClick={() => void deleteRegistration(row)}
+                                className={`${rosterButton} border-rose-400/30 text-rose-200 hover:bg-rose-400/10 sm:ml-auto`}
+                              >
+                                <Trash2 size={16} aria-hidden="true" />
+                                {deleting === row.id ? "Deleting…" : "Delete registration"}
+                              </button>
                             </div>
                           )}
                         </RosterDetails>

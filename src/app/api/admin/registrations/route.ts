@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
-import { RegistrationStatus } from "@prisma/client";
+import { getAuthenticatedAdmin, requireSession } from "@/lib/auth";
+import { Prisma, RegistrationStatus } from "@prisma/client";
 import { isHncOrUgx } from "@/lib/events";
 import { registrationAmbassadorNames, registrationRosterQuery, rosterPage, ROSTER_PAGE_SIZE } from "@/lib/admin-roster-query";
+import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
+import { removePaymentProof } from "@/lib/payment-storage";
 
 /**
  * GET   /api/admin/registrations?eventId=...&q=...&page=0
@@ -85,5 +87,30 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ registration });
   } catch {
     return NextResponse.json({ message: "Submission not found" }, { status: 404 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const admin = await getAuthenticatedAdmin(req);
+    if (!admin) return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+    if (admin.role !== "ADMIN") {
+      return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+    }
+
+    const id = z.uuid().safeParse(req.nextUrl.searchParams.get("id"));
+    if (!id.success) return NextResponse.json({ message: "Invalid registration ID." }, { status: 400 });
+
+    const deleted = await prisma.registration.delete({
+      where: { id: id.data, event: { slug: { in: PARTICIPANT_EVENT_SLUGS } } },
+      select: { paymentProofPath: true },
+    });
+    if (deleted.paymentProofPath) await removePaymentProof(deleted.paymentProofPath);
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ message: "HNC or UGX registration not found." }, { status: 404 });
+    }
+    return NextResponse.json({ message: "Couldn't delete the registration. Try again." }, { status: 503 });
   }
 }

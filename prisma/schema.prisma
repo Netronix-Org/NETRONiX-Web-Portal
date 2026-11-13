@@ -52,6 +52,11 @@ enum RegistrationStatus {
   @@map("registration_status")
 }
 
+enum PaymentDisposition {
+  refunded
+  rejected
+}
+
 model Event {
   id                 String      @id @default(uuid())
   slug               String      @unique
@@ -107,6 +112,8 @@ model Registration {
   admin              AdminUser?         @relation("AdminNotes", fields: [adminId], references: [id], onDelete: SetNull)
   emailSentAt        DateTime?          @map("email_sent_at")
   paymentPaid        Boolean            @default(false) @map("payment_paid")
+  paymentDisposition PaymentDisposition? @map("payment_disposition")
+  ambassadorVerifiedAt DateTime?        @map("ambassador_verified_at") @db.Timestamptz(3)
   paymentProofPath   String?            @map("payment_proof_path")
   isPreRegistration  Boolean            @default(false) @map("is_pre_registration")
   createdAt          DateTime           @default(now()) @map("created_at")

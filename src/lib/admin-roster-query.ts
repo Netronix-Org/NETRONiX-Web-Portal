@@ -63,6 +63,7 @@ export async function registrationRosterQuery(eventId: string, slug: string, par
   const city = textFilter(params, "city");
   const ambassador = textFilter(params, "ambassador");
   const payment = params.get("payment");
+  const ambassadorVerification = params.get("ambassadorVerification");
   const proof = params.get("proof");
   const transport = params.get("transport");
   const choice = textFilter(params, "choice");
@@ -80,7 +81,13 @@ export async function registrationRosterQuery(eventId: string, slug: string, par
   if (ambassador) conditions.push({ OR: filterReferrals });
   if (university) where.university = contains(university);
   if (city) where.city = contains(city);
-  if (payment === "paid" || payment === "pending") where.paymentPaid = payment === "paid";
+  if (payment === "paid" || payment === "pending") {
+    where.paymentPaid = payment === "paid";
+    where.paymentDisposition = null;
+  }
+  if (payment === "refunded" || payment === "rejected") where.paymentDisposition = payment;
+  if (ambassadorVerification === "verified") where.ambassadorVerifiedAt = { not: null };
+  if (ambassadorVerification === "unverified") where.ambassadorVerifiedAt = null;
   if (proof === "uploaded") where.paymentProofPath = { not: null };
   if (proof === "missing") where.paymentProofPath = null;
   if (transport === "yes" || transport === "no") conditions.push({ formData: { path: ["transport"], equals: transport } });
@@ -96,7 +103,7 @@ export async function registrationRosterQuery(eventId: string, slug: string, par
   if (sort === "oldest") orderBy[0] = { createdAt: "asc" };
   if (sort === "name") orderBy.unshift({ fullName: "asc" });
   if (sort === "university") orderBy.unshift({ university: { sort: "asc", nulls: "last" } });
-  if (sort === "payment") orderBy.unshift({ paymentPaid: "asc" });
+  if (sort === "payment") orderBy.unshift({ paymentPaid: "asc" }, { paymentDisposition: { sort: "asc", nulls: "first" } });
   return { where, orderBy };
 }
 
