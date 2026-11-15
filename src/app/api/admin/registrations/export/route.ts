@@ -104,6 +104,9 @@ export async function GET(req: NextRequest) {
   if (!event) {
     return NextResponse.json({ message: "Event not found" }, { status: 404 });
   }
+  if (session.role !== "ADMIN" && isHncOrUgx(event.slug)) {
+    return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+  }
 
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, req.nextUrl.searchParams);
   const registrations = await prisma.registration.findMany({

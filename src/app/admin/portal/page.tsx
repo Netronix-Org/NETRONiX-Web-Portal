@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { AdminDashboard } from "@/components/admin/dashboard";
 import { effectiveStatus } from "@/lib/events";
+import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
 import { prisma } from "@/lib/prisma";
-import { EventStatus } from "@prisma/client";
 
 export const metadata: Metadata = {
   title: "Portal — NETRONiX Admin",
@@ -24,6 +24,7 @@ export default async function AdminPortalPage() {
     }),
     prisma.registration.groupBy({
       by: ["eventId"],
+      where: session.role === "ADMIN" ? undefined : { event: { slug: { notIn: PARTICIPANT_EVENT_SLUGS } } },
       _count: true,
     }),
   ]);

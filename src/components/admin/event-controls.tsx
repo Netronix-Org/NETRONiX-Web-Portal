@@ -52,8 +52,8 @@ interface EventControlsProps {
   event: Event;
   /** Status after the schedule is applied. Computed on the server. */
   shown: EventStatus;
-  submissionCount: number;
-  onViewSubmissions: () => void;
+  submissionCount?: number;
+  onViewSubmissions?: () => void;
 }
 
 export function EventControls({
@@ -201,7 +201,7 @@ export function EventControls({
           </div>
 
           <p className="font-mono text-xs" style={{ color: "#888888" }}>
-            /{event.slug} · {submissionCount} submissions
+            /{event.slug}{submissionCount !== undefined && ` · ${submissionCount} submissions`}
             {scheduled && (
               <span className="text-amber-400 font-semibold ml-2">
                 · {scheduled}
@@ -211,13 +211,13 @@ export function EventControls({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          {onViewSubmissions && <button
             onClick={onViewSubmissions}
             className="py-2 px-4 rounded-lg text-xs font-mono font-medium border transition-colors hover:bg-white/[0.05] cursor-pointer"
             style={{ borderColor: "rgba(255,255,255,0.12)", color: "#CCCCCC" }}
           >
             View submissions
-          </button>
+          </button>}
 
           {event.registrationOpen && (shown === "live" || shown === "coming_soon") && (
             <a
