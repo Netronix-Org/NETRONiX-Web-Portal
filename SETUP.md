@@ -274,6 +274,11 @@ to that same commit. The workflow reads the GitHub ref and updates it with the
 built-in Actions token in the `release-automation` environment, restricted to
 `main`. It uses no custom app or AI credentials and executes no candidate code.
 
+A failed validation leaves the current production commit in place. Check the
+failed job in **GitHub → Actions → NETRONiX CI**, fix it on `develop`, and
+push the correction. If GitHub reports a diverged branch, merge `main` into
+`develop` and push the result so CI can validate the combined changes.
+
 Keep the `Build and lint` check required on `main` and keep force pushes
 disabled. Keep `main` as Vercel's production branch.
 
