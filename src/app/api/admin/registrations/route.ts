@@ -32,6 +32,9 @@ export async function GET(req: NextRequest) {
 
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { slug: true } });
   if (!event) return NextResponse.json({ message: "Event not found" }, { status: 404 });
+  if (session.role !== "ADMIN" && isHncOrUgx(event.slug)) {
+    return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+  }
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, searchParams);
 
   const [registrations, total] = await Promise.all([
@@ -81,7 +84,10 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const registration = await prisma.registration.update({
-      where: { id },
+      where: {
+        id,
+        ...(session.role !== "ADMIN" && { event: { slug: { notIn: PARTICIPANT_EVENT_SLUGS } } }),
+      },
       data: changes,
     });
     return NextResponse.json({ registration });

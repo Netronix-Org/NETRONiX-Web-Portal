@@ -147,7 +147,7 @@ export async function getSession(): Promise<AdminSession | null> {
       batch: user.batch,
     };
   } catch {
-    return session;
+    return null;
   }
 }
 

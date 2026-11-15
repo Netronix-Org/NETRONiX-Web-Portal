@@ -30,12 +30,13 @@ export function AdminDashboard({
 }: AdminDashboardProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("events");
+  const submissionEvents = session.role === "ADMIN" ? events : events.filter((event) => !isHncOrUgx(event.slug));
   const [selectedEventId, setSelectedEventId] = useState<string | null>(
-    events[0]?.id ?? null
+    submissionEvents[0]?.id ?? null
   );
 
   const totalSubmissions = Object.values(counts).reduce((a, b) => a + b, 0);
-  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const selectedEvent = submissionEvents.find((event) => event.id === selectedEventId) ?? submissionEvents[0];
 
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -185,15 +186,18 @@ export function AdminDashboard({
                 No events yet.
               </div>
             ) : (
-              events.map((event) => (
-                <EventControls
-                  key={event.id}
-                  event={event}
-                  shown={statuses[event.id] ?? event.status}
-                  submissionCount={counts[event.id] ?? 0}
-                  onViewSubmissions={() => viewSubmissions(event.id)}
-                />
-              ))
+              events.map((event) => {
+                const canViewSubmissions = session.role === "ADMIN" || !isHncOrUgx(event.slug);
+                return (
+                  <EventControls
+                    key={event.id}
+                    event={event}
+                    shown={statuses[event.id] ?? event.status}
+                    submissionCount={canViewSubmissions ? counts[event.id] ?? 0 : undefined}
+                    onViewSubmissions={canViewSubmissions ? () => viewSubmissions(event.id) : undefined}
+                  />
+                );
+              })
             )}
           </section>
         )}
@@ -204,8 +208,8 @@ export function AdminDashboard({
             {/* Event picker — submissions are always scoped to exactly one
                 event, so there is never any doubt whose rows these are. */}
             <div className="flex flex-wrap gap-2">
-              {events.map((event) => {
-                const active = event.id === selectedEventId;
+              {submissionEvents.map((event) => {
+                const active = event.id === selectedEvent?.id;
                 return (
                   <button
                     key={event.id}

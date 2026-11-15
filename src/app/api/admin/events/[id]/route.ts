@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
 import { EventStatus } from "@prisma/client";
 
 /**
@@ -94,7 +95,10 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    await prisma.event.delete({ where: { id } });
+    const deleted = await prisma.event.deleteMany({
+      where: { id, ...(session.role !== "ADMIN" && { slug: { notIn: PARTICIPANT_EVENT_SLUGS } }) },
+    });
+    if (deleted.count === 0) return NextResponse.json({ message: "Event not found or access denied." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(
