@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserPlus, Shield, UserCheck, Key, Copy, Check, Eye, EyeOff, RefreshCw, X, AlertCircle } from "lucide-react";
+import { UserPlus, Shield, UserCheck, Copy, Check, Eye, EyeOff, RefreshCw, X, AlertCircle } from "lucide-react";
 import type { AdminSession } from "@/lib/auth";
+import type { Role } from "@prisma/client";
+import { ROLE_LABELS } from "@/lib/admin-permissions";
 
 interface UserItem {
   id: string;
@@ -10,7 +12,7 @@ interface UserItem {
   displayName: string | null;
   username: string;
   email: string;
-  role: "ADMIN" | "MANAGER";
+  role: Role;
   batch: number | null;
   isActive: boolean;
   lastLoginAt: string | null;
@@ -38,7 +40,7 @@ export function UsersManager({ session }: UsersManagerProps) {
     email: "",
     password: "",
     batch: 34, // Default to 3rd Year (Batch 34)
-    role: "MANAGER" as "ADMIN" | "MANAGER",
+    role: "MANAGER" as Role,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -132,7 +134,7 @@ export function UsersManager({ session }: UsersManagerProps) {
     }
   };
 
-  const handleToggleActive = async (user: UserItem) => {
+  const updateAccount = async (user: UserItem, changes: { isActive?: boolean; role?: Role }) => {
     if (!isAdmin) return;
     try {
       const res = await fetch("/api/admin/users", {
@@ -140,12 +142,12 @@ export function UsersManager({ session }: UsersManagerProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: user.id,
-          isActive: !user.isActive,
+          ...changes,
         }),
       });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.message || "Could not update status");
+        throw new Error(d.message || "Could not update account");
       }
       setSuccess(`Account for ${user.displayName || user.username} updated.`);
       setTimeout(() => setSuccess(null), 3000);
@@ -176,7 +178,7 @@ export function UsersManager({ session }: UsersManagerProps) {
             Team & Junior Accounts
           </h2>
           <p className="text-xs text-neutral-400 font-mono">
-            {users.length} accounts · {adminCount} Executive Admins · {juniorCount} Junior Coordinators (3rd Year)
+            {users.length} accounts · {adminCount} Executive Admins · {juniorCount} Junior Coordinators · {users.length - adminCount - juniorCount} Liaison Team
           </p>
         </div>
 
@@ -283,7 +285,7 @@ export function UsersManager({ session }: UsersManagerProps) {
                                 : "bg-sky-500/15 text-sky-400 border border-sky-500/30"
                             }`}
                           >
-                            {user.role === "ADMIN" ? "Executive Admin" : "Junior Coordinator"}
+                            {ROLE_LABELS[user.role]}
                           </span>
                           {user.batch && (
                             <span className="px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-neutral-400">
@@ -310,8 +312,17 @@ export function UsersManager({ session }: UsersManagerProps) {
 
                       <td className="px-4 py-3.5 text-right">
                         {isAdmin && !isCurrent && (
+                          <div className="flex flex-wrap justify-end gap-2">
+                          <select
+                            aria-label={`Role for ${user.username}`}
+                            value={user.role}
+                            onChange={(event) => void updateAccount(user, { role: event.target.value as Role })}
+                            className="rounded border border-white/15 bg-[#0A0A0A] px-2 py-1 text-xs text-white"
+                          >
+                            {Object.entries(ROLE_LABELS).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
+                          </select>
                           <button
-                            onClick={() => handleToggleActive(user)}
+                            onClick={() => void updateAccount(user, { isActive: !user.isActive })}
                             className={`px-2.5 py-1 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
                               user.isActive
                                 ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
@@ -320,6 +331,7 @@ export function UsersManager({ session }: UsersManagerProps) {
                           >
                             {user.isActive ? "Deactivate" : "Reactivate"}
                           </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -426,11 +438,10 @@ export function UsersManager({ session }: UsersManagerProps) {
                     <label className="text-[11px] font-mono text-neutral-400">Role Permissions *</label>
                     <select
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as "ADMIN" | "MANAGER" })}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                       className="w-full rounded-lg border border-white/10 px-3 py-2 text-xs font-mono text-white bg-[#0A0A0A] focus:outline-none focus:border-red-500"
                     >
-                      <option value="MANAGER">MANAGER (Junior / 3rd Year)</option>
-                      <option value="ADMIN">ADMIN (Full Executive Access)</option>
+                      {Object.entries(ROLE_LABELS).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
                     </select>
                   </div>
                 </div>

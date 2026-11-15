@@ -26,11 +26,12 @@ type ParticipantPage = {
   pageSize: number;
 };
 
-export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canReviewPayments }: {
+export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canReviewPayments, canViewScreenshots }: {
   eventId: string;
   eventSlug: string;
   eventTitle: string;
   canReviewPayments: boolean;
+  canViewScreenshots: boolean;
 }) {
   const router = useRouter();
   const roster = useRoster<ParticipantPage>("/api/admin/registrations", new URLSearchParams({ eventId }).toString());
@@ -155,9 +156,10 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                           ...eventDetails,
                           ...(row.adminNotes ? [["Admin notes", row.adminNotes] as [string, string]] : []),
                         ]}>
-                          {canReviewPayments && (
+                          {(canViewScreenshots || canReviewPayments) && (
                             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-3">
-                              <PaymentScreenshot id={row.id} hasProof={Boolean(row.paymentProofPath)} />
+                              {canViewScreenshots && <PaymentScreenshot id={row.id} hasProof={Boolean(row.paymentProofPath)} />}
+                              {canReviewPayments && <>
                               <RegistrationPassword endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
                               <button
                                 type="button"
@@ -168,6 +170,7 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                                 <Trash2 size={16} aria-hidden="true" />
                                 {deleting === row.id ? "Deleting…" : "Delete registration"}
                               </button>
+                              </>}
                             </div>
                           )}
                         </RosterDetails>

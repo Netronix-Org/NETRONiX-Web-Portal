@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedAdmin, hashPassword } from "@/lib/auth";
 import { Role } from "@prisma/client";
+import { ROLE_LABELS } from "@/lib/admin-permissions";
 
 const CreateUserSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
@@ -10,13 +11,13 @@ const CreateUserSchema = z.object({
   email: z.string().trim().email("Please provide a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   batch: z.number().int().min(30).max(40).nullable().optional(),
-  role: z.enum(["ADMIN", "MANAGER"]).default("MANAGER"),
+  role: z.enum(Role).default("MANAGER"),
 });
 
 const UpdateUserSchema = z.object({
   id: z.string().uuid("Invalid user ID"),
   isActive: z.boolean().optional(),
-  role: z.enum(["ADMIN", "MANAGER"]).optional(),
+  role: z.enum(Role).optional(),
   batch: z.number().int().min(30).max(40).nullable().optional(),
   password: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        message: `${role === "ADMIN" ? "Admin" : "Junior coordinator"} account created successfully`,
+        message: `${ROLE_LABELS[role]} account created successfully`,
         user: { ...newUser, name: newUser.displayName },
       },
       { status: 201 }
@@ -180,9 +181,9 @@ export async function PATCH(req: NextRequest) {
     const { id, isActive, role, batch, password } = parsed.data;
 
     // Prevent deactivating own account
-    if (id === admin.id && isActive === false) {
+    if (id === admin.id && (isActive === false || (role && role !== "ADMIN"))) {
       return NextResponse.json(
-        { message: "You cannot deactivate your own account." },
+        { message: "You cannot deactivate or remove executive access from your own account." },
         { status: 400 }
       );
     }

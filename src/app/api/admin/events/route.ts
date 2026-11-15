@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 
 /**
  * POST /api/admin/events — create a new event from the portal.
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+  }
+  if (!await hasAdminPermission(session.role, "events")) {
+    return NextResponse.json({ message: "You don’t have access to event settings." }, { status: 403 });
   }
 
   let body: unknown;

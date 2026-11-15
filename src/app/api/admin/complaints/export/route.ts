@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedAdmin } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { buildComplaintWhere } from "@/lib/complaint-filters";
 import { csvCell } from "@/lib/csv";
 
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
     const admin = await getAuthenticatedAdmin(req);
     if (!admin) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+    if (!await hasAdminPermission(admin.role, "complaints")) {
+      return NextResponse.json({ message: "You don’t have access to the Complaints Desk." }, { status: 403 });
     }
 
     const complaints = await prisma.complaint.findMany({
