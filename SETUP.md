@@ -265,30 +265,17 @@ New events always start as **Coming Soon**, so nothing goes live by accident.
 
 ## GitHub CI and releases
 
-**NETRONiX CI** runs lint, the Next.js production build, and a TypeScript check
-on `develop` pushes and PRs targeting `main`. The build and review jobs use
-no production Supabase or Brevo credentials.
+**NETRONiX CI** runs lint, the Next.js production build, TypeScript, and an
+unauthenticated admin endpoint smoke test on pushes to `develop` and PRs
+targeting `main`. These checks run without Supabase or Brevo production secrets.
 
-The **NETRONiX Release** workflow must be on `main`. To activate it, create
-these GitHub Actions environments and restrict their deployment branches to
-`main`:
+When a `develop` push passes CI, **NETRONiX Release** fast-forwards `main`
+to that same commit. The workflow reads the GitHub ref and updates it with the
+built-in Actions token in the `release-automation` environment, restricted to
+`main`. It uses no custom app or AI credentials and executes no candidate code.
 
-| Environment | Variables | Secrets |
-| --- | --- | --- |
-| `release-review` | `RELEASE_APP_BOT_LOGIN` (the GitHub App's bot login) | `OPENAI_API_KEY` |
-| `release-automation` | `RELEASE_APP_CLIENT_ID` | `RELEASE_APP_PRIVATE_KEY` |
-
-Install the release GitHub App on this repository with **Contents** and
-**Pull requests** read/write permissions. Add the private key directly to the
-`release-automation` environment. The app uses the normal branch rules.
-
-After the workflows are on `main`, open a PR to `main` and confirm both
-`Build and lint` and `Codex release review` appear. Require both on `main`
-with **Require branches to be up to date before merging** and keep the
-code-owner review rule. Enable **Allow auto-merge** and **Allow merge commits**
-in the repository settings. Successful pushes to `develop` can then open a
-release PR and request auto-merge. GitHub merges once the required checks and
-code-owner review are complete. Keep `main` as Vercel's production branch.
+Keep the `Build and lint` check required on `main` and keep force pushes
+disabled. Keep `main` as Vercel's production branch.
 
 ## Deploying
 
