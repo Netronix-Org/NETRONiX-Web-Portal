@@ -34,3 +34,18 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm typecheck
+      - name: Smoke-test the admin access boundary
+        run: |
+          pnpm start --hostname 127.0.0.1 --port 3101 > "$RUNNER_TEMP/next-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          base=http://127.0.0.1:3101
+          curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 1 "$base/admin/login" > /dev/null
+
+          for route in /api/admin/executive /api/admin/registrations /api/admin/ambassadors; do
+            actual=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$base$route")
+            if [[ "$actual" != 401 ]]; then
+              echo "::error::$route returned $actual for an unauthenticated request; expected 401."
+              exit 1
+            fi
+          done
