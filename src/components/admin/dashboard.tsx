@@ -8,29 +8,45 @@ import { EventControls } from "./event-controls";
 import { SubmissionsTable } from "./submissions-table";
 import { ParticipantSubmissions } from "./participant-submissions";
 import { isHncOrUgx } from "@/lib/events";
+import { registrationPermission, ROLE_LABELS, type AdminPermissions } from "@/lib/admin-permissions";
 import { UsersManager } from "./users-manager";
+import { RolePermissions, type EditableRolePermissions } from "./role-permissions";
 import { AmbassadorApplications } from "./ambassador-applications";
-import { Users, Calendar, Inbox, MessageSquare } from "lucide-react";
+import { ExecutiveOverviewPanel } from "./executive-overview";
+import type { ExecutiveEvent } from "@/lib/admin-executive";
+import { Users, Calendar, Inbox, LayoutDashboard, MessageSquare } from "lucide-react";
 
 interface AdminDashboardProps {
   session: AdminSession;
+  permissions: AdminPermissions;
+  editablePermissions: EditableRolePermissions | null;
   events: Event[];
   counts: Record<string, number>;
   /** Effective status per event id, resolved on the server. */
   statuses: Record<string, EventStatus>;
 }
 
-type Tab = "events" | "submissions" | "ambassadors" | "team";
+type Tab = "executive" | "events" | "submissions" | "ambassadors" | "team";
 
 export function AdminDashboard({
   session,
+  permissions,
+  editablePermissions,
   events,
   counts,
   statuses,
 }: AdminDashboardProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("events");
-  const submissionEvents = session.role === "ADMIN" ? events : events.filter((event) => !isHncOrUgx(event.slug));
+  const canViewSubmissions = permissions.hnc || permissions.ugx || permissions.otherRegistrations;
+  const availableTabs: Tab[] = [];
+  if (session.role === "ADMIN") availableTabs.push("executive");
+  if (permissions.events) availableTabs.push("events");
+  if (canViewSubmissions) availableTabs.push("submissions");
+  if (permissions.ambassadors) availableTabs.push("ambassadors");
+  if (editablePermissions) availableTabs.push("team");
+  const [requestedTab, setTab] = useState<Tab | undefined>();
+  const tab = requestedTab && availableTabs.includes(requestedTab) ? requestedTab : availableTabs[0];
+  const submissionEvents = events.filter((event) => permissions[registrationPermission(event.slug)]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(
     submissionEvents[0]?.id ?? null
   );
@@ -50,7 +66,12 @@ export function AdminDashboard({
     setTab("submissions");
   }
 
-  const roleLabel = session.role === "ADMIN" ? "Executive Admin" : `Junior Coordinator${session.batch ? ` (Batch ${session.batch})` : ""}`;
+  function viewExecutiveSubmissions(slug: ExecutiveEvent) {
+    const event = submissionEvents.find((event) => event.slug === slug);
+    if (event) viewSubmissions(event.id);
+  }
+
+  const roleLabel = ROLE_LABELS[session.role] + (session.role === "MANAGER" && session.batch ? ` (Batch ${session.batch})` : "");
 
   return (
     <main
@@ -101,7 +122,23 @@ export function AdminDashboard({
           className="flex flex-wrap gap-1 p-1 rounded-xl border w-fit"
           style={{ backgroundColor: "#141414", borderColor: "rgba(255,255,255,0.08)" }}
         >
-          <button
+          {session.role === "ADMIN" && (
+            <button
+              type="button"
+              aria-pressed={tab === "executive"}
+              onClick={() => setTab("executive")}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 font-mono text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: tab === "executive" ? "rgba(225,29,46,0.15)" : "transparent",
+                color: tab === "executive" ? "#FFFFFF" : "#888888",
+              }}
+            >
+              <LayoutDashboard className="size-3.5" aria-hidden="true" />
+              Executive dashboard
+            </button>
+          )}
+
+          {permissions.events && <button
             onClick={() => setTab("events")}
             className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
             style={{
@@ -112,9 +149,9 @@ export function AdminDashboard({
           >
             <Calendar className="w-3.5 h-3.5" />
             Events
-          </button>
+          </button>}
 
-          <button
+          {canViewSubmissions && <button
             onClick={() => setTab("submissions")}
             className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
             style={{
@@ -125,9 +162,9 @@ export function AdminDashboard({
           >
             <Inbox className="w-3.5 h-3.5" />
             Submissions ({totalSubmissions})
-          </button>
+          </button>}
 
-          {session.role === "ADMIN" && (
+          {permissions.ambassadors && (
             <button
               onClick={() => setTab("ambassadors")}
               className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
@@ -141,7 +178,7 @@ export function AdminDashboard({
             </button>
           )}
 
-          {session.role === "ADMIN" && (
+          {editablePermissions && (
             <button
               onClick={() => setTab("team")}
               className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
@@ -152,18 +189,21 @@ export function AdminDashboard({
               }}
             >
               <Users className="w-3.5 h-3.5" />
-              Junior Accounts & Team
+              Team & Permissions
             </button>
           )}
 
-          <button
+          {permissions.complaints && <button
             onClick={() => router.push("/admin/complaints")}
             className="py-2 px-4 rounded-lg text-xs font-mono font-medium transition-colors inline-flex items-center gap-2 cursor-pointer text-neutral-400 hover:text-white"
           >
             <MessageSquare className="w-3.5 h-3.5 text-red-500" />
             Complaints Desk ↗
-          </button>
+          </button>}
         </div>
+        {!tab && !permissions.complaints && <p className="text-sm text-neutral-400">Your role currently has no access to portal sections.</p>}
+
+        {tab === "executive" && <ExecutiveOverviewPanel onViewSubmissions={viewExecutiveSubmissions} />}
 
         {/* ── Events tab ──────────────────────────────────────────────────── */}
         {tab === "events" && (
@@ -187,14 +227,14 @@ export function AdminDashboard({
               </div>
             ) : (
               events.map((event) => {
-                const canViewSubmissions = session.role === "ADMIN" || !isHncOrUgx(event.slug);
+                const canViewEvent = permissions[registrationPermission(event.slug)];
                 return (
                   <EventControls
                     key={event.id}
                     event={event}
                     shown={statuses[event.id] ?? event.status}
-                    submissionCount={canViewSubmissions ? counts[event.id] ?? 0 : undefined}
-                    onViewSubmissions={canViewSubmissions ? () => viewSubmissions(event.id) : undefined}
+                    submissionCount={canViewEvent ? counts[event.id] ?? 0 : undefined}
+                    onViewSubmissions={canViewEvent ? () => viewSubmissions(event.id) : undefined}
                   />
                 );
               })
@@ -240,6 +280,7 @@ export function AdminDashboard({
               <ParticipantSubmissions
                 key={selectedEvent.id}
                 canReviewPayments={session.role === "ADMIN"}
+                canViewScreenshots={permissions.paymentScreenshots}
                 eventId={selectedEvent.id}
                 eventSlug={selectedEvent.slug}
                 eventTitle={selectedEvent.title}
@@ -258,11 +299,12 @@ export function AdminDashboard({
           </section>
         )}
 
-        {tab === "ambassadors" && session.role === "ADMIN" && <AmbassadorApplications />}
+        {tab === "ambassadors" && <AmbassadorApplications canRevealPasswords={session.role === "ADMIN"} />}
 
         {/* ── Team & Junior Accounts tab ──────────────────────────────────── */}
-        {tab === "team" && session.role === "ADMIN" && (
+        {tab === "team" && editablePermissions && (
           <section className="flex flex-col gap-5">
+            <RolePermissions initial={editablePermissions} />
             <UsersManager session={session} />
           </section>
         )}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedAdmin } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { prisma } from "@/lib/prisma";
 import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
 import { csvCell } from "@/lib/csv";
@@ -9,7 +10,9 @@ export async function GET(req: NextRequest) {
   try {
     const admin = await getAuthenticatedAdmin(req);
     if (!admin) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    if (admin.role !== "ADMIN") return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+    if (!await hasAdminPermission(admin.role, "ambassadors")) {
+      return NextResponse.json({ message: "You don’t have access to ambassador registrations." }, { status: 403 });
+    }
 
     const params = req.nextUrl.searchParams;
     const exportCsv = params.get("format") === "csv";

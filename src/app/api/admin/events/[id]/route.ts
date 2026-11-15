@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
 import { EventStatus } from "@prisma/client";
 
@@ -49,6 +50,9 @@ export async function PATCH(
   if (!session) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
   }
+  if (!await hasAdminPermission(session.role, "events")) {
+    return NextResponse.json({ message: "You don’t have access to event settings." }, { status: 403 });
+  }
 
   const { id } = await params;
 
@@ -90,6 +94,9 @@ export async function DELETE(
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+  }
+  if (!await hasAdminPermission(session.role, "events")) {
+    return NextResponse.json({ message: "You don’t have access to event settings." }, { status: 403 });
   }
 
   const { id } = await params;

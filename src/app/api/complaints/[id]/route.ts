@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getAuthenticatedAdmin } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { isValidStatusTransition, StudentComplaintResponse } from "@/lib/types/complaints";
 import {
   sendComplaintStatusUpdateEmail,
@@ -118,6 +119,9 @@ export async function PATCH(
     const admin = await getAuthenticatedAdmin(req);
     if (!admin) {
       return NextResponse.json({ message: "Unauthorized. Admin session required." }, { status: 401 });
+    }
+    if (!await hasAdminPermission(admin.role, "complaints")) {
+      return NextResponse.json({ message: "You don’t have access to the Complaints Desk." }, { status: 403 });
     }
 
     const { id } = await params;

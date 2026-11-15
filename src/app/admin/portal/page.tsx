@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { AdminDashboard } from "@/components/admin/dashboard";
 import { effectiveStatus } from "@/lib/events";
-import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
+import { accessibleRegistrationEvents, getAdminPermissions } from "@/lib/admin-permissions.server";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -18,15 +18,20 @@ export default async function AdminPortalPage() {
   const session = await getSession();
   if (!session) redirect("/admin/login?next=/admin/portal");
 
-  const [events, counts] = await Promise.all([
+  const permissions = await getAdminPermissions(session.role);
+  const registrationEvents = accessibleRegistrationEvents(permissions);
+  const [events, counts, juniorPermissions, liaisonPermissions] = await Promise.all([
     prisma.event.findMany({
+      where: permissions.events ? undefined : registrationEvents,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
     prisma.registration.groupBy({
       by: ["eventId"],
-      where: session.role === "ADMIN" ? undefined : { event: { slug: { notIn: PARTICIPANT_EVENT_SLUGS } } },
+      where: { event: registrationEvents },
       _count: true,
     }),
+    session.role === "ADMIN" ? getAdminPermissions("MANAGER") : null,
+    session.role === "ADMIN" ? getAdminPermissions("LIAISON") : null,
   ]);
 
   // Roll the submission counts up per event.
@@ -45,6 +50,8 @@ export default async function AdminPortalPage() {
   return (
     <AdminDashboard
       session={session}
+      permissions={permissions}
+      editablePermissions={juniorPermissions && liaisonPermissions ? { MANAGER: juniorPermissions, LIAISON: liaisonPermissions } : null}
       events={events}
       counts={Object.fromEntries(countByEvent)}
       statuses={statuses}

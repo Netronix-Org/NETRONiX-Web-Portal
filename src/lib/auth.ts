@@ -14,6 +14,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
+import type { Role } from "@prisma/client";
 
 export const SESSION_COOKIE = "netronix_admin_session";
 
@@ -22,7 +23,7 @@ export interface AdminSession {
   sub: string;
   username: string;
   displayName: string | null;
-  role: "ADMIN" | "MANAGER";
+  role: Role;
   batch?: number | null;
 }
 
@@ -91,7 +92,7 @@ export async function verifySessionToken(
       username: payload.username,
       displayName:
         typeof payload.displayName === "string" ? payload.displayName : null,
-      role: (payload.role as "ADMIN" | "MANAGER") ?? "MANAGER",
+      role: (payload.role as Role) ?? "MANAGER",
       batch: typeof payload.batch === "number" ? payload.batch : null,
     };
   } catch {

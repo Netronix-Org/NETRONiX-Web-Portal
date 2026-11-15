@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { InterviewScorePatchSchema, SCORE_METRICS } from "@/lib/validation/interview-score";
 import { VOLUNTEER_CALL_SLUG } from "@/lib/events";
 
@@ -21,6 +22,9 @@ export async function PATCH(
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+  }
+  if (!await hasAdminPermission(session.role, "otherRegistrations")) {
+    return NextResponse.json({ message: "You don’t have access to interview scores." }, { status: 403 });
   }
 
   const { id } = await params;

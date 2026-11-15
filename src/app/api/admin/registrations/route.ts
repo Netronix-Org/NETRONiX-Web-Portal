@@ -7,6 +7,8 @@ import { isHncOrUgx } from "@/lib/events";
 import { registrationAmbassadorNames, registrationRosterQuery, rosterPage, ROSTER_PAGE_SIZE } from "@/lib/admin-roster-query";
 import { PARTICIPANT_EVENT_SLUGS } from "@/lib/participants";
 import { removePaymentProof } from "@/lib/payment-storage";
+import { registrationPermission } from "@/lib/admin-permissions";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 
 /**
  * GET   /api/admin/registrations?eventId=...&q=...&page=0
@@ -32,8 +34,8 @@ export async function GET(req: NextRequest) {
 
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { slug: true } });
   if (!event) return NextResponse.json({ message: "Event not found" }, { status: 404 });
-  if (session.role !== "ADMIN" && isHncOrUgx(event.slug)) {
-    return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+  if (!await hasAdminPermission(session.role, registrationPermission(event.slug))) {
+    return NextResponse.json({ message: "You don’t have access to these registrations." }, { status: 403 });
   }
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, searchParams);
 
@@ -80,6 +82,9 @@ export async function PATCH(req: NextRequest) {
 
   if (Object.keys(changes).length === 0) {
     return NextResponse.json({ message: "Nothing to update" }, { status: 400 });
+  }
+  if (!await hasAdminPermission(session.role, "otherRegistrations")) {
+    return NextResponse.json({ message: "You don’t have access to edit these registrations." }, { status: 403 });
   }
 
   try {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { registrationPermission } from "@/lib/admin-permissions";
+import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { csvCell } from "@/lib/csv";
 import { getPaymentStatus, PAYMENT_LABELS } from "@/lib/participants";
 import { registrationAmbassadorNames, registrationRosterQuery } from "@/lib/admin-roster-query";
@@ -104,8 +106,8 @@ export async function GET(req: NextRequest) {
   if (!event) {
     return NextResponse.json({ message: "Event not found" }, { status: 404 });
   }
-  if (session.role !== "ADMIN" && isHncOrUgx(event.slug)) {
-    return NextResponse.json({ message: "Executive admin access required." }, { status: 403 });
+  if (!await hasAdminPermission(session.role, registrationPermission(event.slug))) {
+    return NextResponse.json({ message: "You don’t have access to these registrations." }, { status: 403 });
   }
 
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, req.nextUrl.searchParams);

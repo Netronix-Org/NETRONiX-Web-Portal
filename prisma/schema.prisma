@@ -9,6 +9,16 @@ datasource db {
 enum Role {
   ADMIN
   MANAGER
+  LIAISON
+}
+
+model AdminRolePermission {
+  role       Role
+  permission String
+  enabled    Boolean
+
+  @@id([role, permission])
+  @@map("admin_role_permissions")
 }
 
 // ─── Admin Auth ──────────────────────────────────────────────────────────────

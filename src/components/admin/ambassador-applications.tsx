@@ -16,7 +16,7 @@ type AmbassadorPage = {
   pageSize: number;
 };
 
-export function AmbassadorApplications() {
+export function AmbassadorApplications({ canRevealPasswords }: { canRevealPasswords: boolean }) {
   const roster = useRoster<AmbassadorPage>("/api/admin/ambassadors");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -86,10 +86,10 @@ export function AmbassadorApplications() {
                         ["Submitted (PKT)", formatSubmittedAt(row.createdAt)],
                         ["Ambassador code", row.code],
                       ]}>
-                        <div className="border-t border-white/10 pt-3">
+                        {canRevealPasswords && <div className="border-t border-white/10 pt-3">
                           <p className="text-xs text-[#B3B3B3]">Portal password</p>
                           <RegistrationPassword endpoint={`/api/admin/ambassadors/${encodeURIComponent(row.id)}/credentials`} issued={row.passwordIssued} />
-                        </div>
+                        </div>}
                       </RosterDetails>
                     )}
                   </article>

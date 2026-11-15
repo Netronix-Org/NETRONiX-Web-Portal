@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAmbassadorSession } from "@/lib/ambassador-session";
 import { getAuthenticatedAdmin } from "@/lib/auth";
+import { registrationPermission } from "@/lib/admin-permissions";
+import { getAdminPermissions } from "@/lib/admin-permissions.server";
 import { getParticipantEmail } from "@/lib/participant-session";
 import { readPaymentImage, paymentStorageFetch, removePaymentProof } from "@/lib/payment-storage";
 import { getPaymentStatus, PARTICIPANT_EVENT_SLUGS, PAYMENT_BUCKET, PAYMENT_IMAGE_TYPES, PAYMENT_STATUSES } from "@/lib/participants";
@@ -23,15 +25,19 @@ export async function GET(req: NextRequest, { params }: Context) {
     const [email, ambassador, admin] = await Promise.all([
       getParticipantEmail(), getAmbassadorSession(), getAuthenticatedAdmin(req),
     ]);
-    if (!email && !ambassador && admin?.role !== "ADMIN") return notFound();
+    if (!email && !ambassador && !admin) return notFound();
     const registration = await prisma.registration.findFirst({
       where: { id, event },
-      select: { email: true, formData: true, paymentProofPath: true },
+      select: { email: true, formData: true, paymentProofPath: true, event: { select: { slug: true } } },
     });
     if (!registration?.paymentProofPath) return notFound();
     const ownsRegistration = email === registration.email.toLowerCase();
     const referred = ambassador && getAmbassadorCode(registration.formData) === String(ambassador.code);
-    if (!ownsRegistration && !referred && admin?.role !== "ADMIN") return notFound();
+    if (!ownsRegistration && !referred) {
+      if (!admin) return notFound();
+      const permissions = await getAdminPermissions(admin.role);
+      if (!permissions.paymentScreenshots || !permissions[registrationPermission(registration.event.slug)]) return notFound();
+    }
 
     const response = await paymentStorageFetch(`object/authenticated/${PAYMENT_BUCKET}/${registration.paymentProofPath}`);
     const type = response.headers.get("content-type") ?? "";

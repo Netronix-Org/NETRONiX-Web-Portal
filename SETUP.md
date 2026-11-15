@@ -16,6 +16,7 @@ pnpm exec prisma db execute --file supabase/ambassador-codes.sql
 pnpm exec prisma db execute --file supabase/ambassador-portal.sql
 pnpm exec prisma db execute --file supabase/participant-portal.sql
 pnpm exec prisma db execute --file supabase/event-registration-fields.sql
+pnpm exec prisma db execute --file supabase/admin-role-permissions.sql
 pnpm exec prisma generate
 pnpm exec tsx scripts/issue-ambassador-passwords.ts
 pnpm exec tsx scripts/setup-payment-storage.ts
