@@ -26,10 +26,11 @@ type ParticipantPage = {
   pageSize: number;
 };
 
-export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canReviewPayments, canViewScreenshots }: {
+export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDeleteRegistrations, canReviewPayments, canViewScreenshots }: {
   eventId: string;
   eventSlug: string;
   eventTitle: string;
+  canDeleteRegistrations: boolean;
   canReviewPayments: boolean;
   canViewScreenshots: boolean;
 }) {
@@ -43,7 +44,7 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
   const data = roster.data;
 
   async function deleteRegistration(row: ParticipantRow) {
-    if (deleting || !window.confirm(
+    if (!canDeleteRegistrations || deleting || !window.confirm(
       `Permanently delete ${row.fullName}’s registration for ${eventTitle}? Any uploaded payment screenshot will also be removed.`,
     )) return;
 
@@ -143,9 +144,23 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                           <p className="mt-1 text-xs text-[#B3B3B3]">{row.paymentProofPath ? "Screenshot uploaded" : "No screenshot"}</p>
                           {row.ambassadorVerifiedAt && <p className="mt-1 text-xs text-sky-300">Verified by ambassador</p>}
                         </div>
-                        <button type="button" aria-expanded={open} aria-label={`${open ? "Hide" : "View"} details for ${row.fullName}`} onClick={() => setExpanded(open ? null : row.id)} className={`${rosterButton} justify-self-end self-end lg:justify-self-start lg:self-auto`}>
-                          {open ? "Hide details" : "Details"} <ChevronDown size={14} aria-hidden="true" className={open ? "rotate-180" : undefined} />
-                        </button>
+                        <div className="col-span-2 flex flex-wrap justify-end gap-2 self-end lg:col-span-1 lg:justify-start lg:self-auto">
+                          <button type="button" aria-expanded={open} aria-label={`${open ? "Hide" : "View"} details for ${row.fullName}`} onClick={() => setExpanded(open ? null : row.id)} className={rosterButton}>
+                            {open ? "Hide details" : "Details"} <ChevronDown size={14} aria-hidden="true" className={open ? "rotate-180" : undefined} />
+                          </button>
+                          {canDeleteRegistrations && (
+                            <button
+                              type="button"
+                              aria-label={`Delete registration for ${row.fullName}`}
+                              disabled={deleting !== null}
+                              onClick={() => void deleteRegistration(row)}
+                              className={`${rosterButton} border-rose-400/30 text-rose-200 hover:bg-rose-400/10`}
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                              {deleting === row.id ? "Deleting…" : "Delete registration"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {open && (
                         <RosterDetails fields={[
@@ -159,18 +174,9 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canRevi
                           {(canViewScreenshots || canReviewPayments) && (
                             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-3">
                               {canViewScreenshots && <PaymentScreenshot id={row.id} hasProof={Boolean(row.paymentProofPath)} />}
-                              {canReviewPayments && <>
-                              <RegistrationPassword endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
-                              <button
-                                type="button"
-                                disabled={deleting !== null}
-                                onClick={() => void deleteRegistration(row)}
-                                className={`${rosterButton} border-rose-400/30 text-rose-200 hover:bg-rose-400/10 sm:ml-auto`}
-                              >
-                                <Trash2 size={16} aria-hidden="true" />
-                                {deleting === row.id ? "Deleting…" : "Delete registration"}
-                              </button>
-                              </>}
+                              {canReviewPayments && (
+                                <RegistrationPassword endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
+                              )}
                             </div>
                           )}
                         </RosterDetails>

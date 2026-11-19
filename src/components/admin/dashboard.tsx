@@ -279,6 +279,7 @@ export function AdminDashboard({
             {selectedEvent && isHncOrUgx(selectedEvent.slug) ? (
               <ParticipantSubmissions
                 key={selectedEvent.id}
+                canDeleteRegistrations={session.role === "ADMIN"}
                 canReviewPayments={session.role === "ADMIN"}
                 canViewScreenshots={permissions.paymentScreenshots}
                 eventId={selectedEvent.id}
