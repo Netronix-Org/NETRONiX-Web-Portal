@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Registration } from "@prisma/client";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, LoaderCircle, Trash2 } from "lucide-react";
 import { getAmbassadorCode, getHncChoices, getTransportPreference, getUgxGame, UGX_GAMES } from "@/lib/validation/event-registration";
 import { PaymentScreenshot } from "@/components/forms/payment-proof";
 import { getPaymentStatus, PAYMENT_COLORS, PAYMENT_LABELS, PAYMENT_STATUSES } from "@/lib/participants";
 import { PaymentStatusSelect } from "./payment-status-select";
 import { RegistrationPassword } from "./registration-password";
 import {
-  commonSorts, formatSubmittedAt, rosterButton, rosterItem, rosterList, rosterRow,
+  commonSorts, formatSubmittedAt, rosterItem, rosterList, rosterRow,
   RosterDetails, RosterField, RosterHeading, RosterPagination, RosterToolbar, useRoster,
 } from "./roster-controls";
 
@@ -144,20 +144,24 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
                           <p className="mt-1 text-xs text-[#B3B3B3]">{row.paymentProofPath ? "Screenshot uploaded" : "No screenshot"}</p>
                           {row.ambassadorVerifiedAt && <p className="mt-1 text-xs text-sky-300">Verified by ambassador</p>}
                         </div>
-                        <div className="col-span-2 flex flex-wrap justify-end gap-2 self-end lg:col-span-1 lg:justify-start lg:self-auto">
-                          <button type="button" aria-expanded={open} aria-label={`${open ? "Hide" : "View"} details for ${row.fullName}`} onClick={() => setExpanded(open ? null : row.id)} className={rosterButton}>
-                            {open ? "Hide details" : "Details"} <ChevronDown size={14} aria-hidden="true" className={open ? "rotate-180" : undefined} />
+                        <div className="col-span-2 flex min-w-0 items-center justify-end gap-1 self-end lg:col-span-1 lg:justify-start lg:self-auto">
+                          <button type="button" aria-expanded={open} aria-label={`${open ? "Hide" : "View"} details for ${row.fullName}`} onClick={() => setExpanded(open ? null : row.id)} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border border-white/15 px-2 text-xs font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 lg:flex-1">
+                            {open ? "Hide" : "Details"} <ChevronDown size={12} aria-hidden="true" className={open ? "rotate-180" : undefined} />
                           </button>
                           {canDeleteRegistrations && (
                             <button
                               type="button"
                               aria-label={`Delete registration for ${row.fullName}`}
+                              title={deleting === row.id ? "Deleting registration…" : "Delete registration"}
+                              aria-busy={deleting === row.id}
                               disabled={deleting !== null}
                               onClick={() => void deleteRegistration(row)}
-                              className={`${rosterButton} border-rose-400/30 text-rose-200 hover:bg-rose-400/10`}
+                              className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-rose-400/10 hover:text-rose-200 focus-visible:bg-rose-400/10 focus-visible:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-wait disabled:opacity-40"
                             >
-                              <Trash2 size={16} aria-hidden="true" />
-                              {deleting === row.id ? "Deleting…" : "Delete registration"}
+                              {deleting === row.id
+                                ? <LoaderCircle size={16} aria-hidden="true" className="motion-safe:animate-spin" />
+                                : <Trash2 size={16} aria-hidden="true" />}
+                              <span className="sr-only">{deleting === row.id ? "Deleting…" : "Delete registration"}</span>
                             </button>
                           )}
                         </div>
