@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowUpRight, CalendarDays, Check, MapPin, Phone } from "luc
 import { AmbassadorIdentity } from "@/components/ui/ambassador-identity";
 import { AmbassadorForm } from "@/components/forms/ambassador-form";
 import { BrandLogo } from "@/components/ui/brand-logo";
+import { LiaisonPackages } from "@/components/ui/liaison-packages";
 import { AMBASSADOR_CAMPAIGN, isAmbassadorCallOpen } from "@/lib/ambassadors";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ export default function AmbassadorsPage() {
                 <p className="mt-4 text-sm leading-relaxed text-[#B3B3B3]">Thank you for your interest in representing your campus. Contact the event team below for questions about this call.</p>
               </div>
             )}
+            <LiaisonPackages />
             <aside aria-label="Event team contacts" className="mt-6 px-1">
               <p className="text-sm text-[#B3B3B3]">Questions? Get in touch with the event team.</p>
               <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">

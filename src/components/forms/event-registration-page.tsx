@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import type { Event } from "@prisma/client";
 import { BrandLogo } from "@/components/ui/brand-logo";
+import { LiaisonPackages } from "@/components/ui/liaison-packages";
 import { AMBASSADOR_CAMPAIGN } from "@/lib/ambassadors";
 import { effectiveStatus, isRegistrationOpen, isPreRegistration } from "@/lib/events";
 import { EventRegistrationForm } from "./event-registration-form";
@@ -44,6 +45,7 @@ export function EventRegistrationPage({ event }: { event: Event }) {
               <Link href="/#events" className={`${styles.back} mt-6`}><ArrowLeft size={15} aria-hidden="true" />Explore events</Link>
             </div>
             )}
+            <LiaisonPackages />
           </div>
         </div>
         <footer className={styles.footer}><span>NETRONiX · Ghulam Ishaq Khan Institute</span><span>HNC &amp; UGX · December {AMBASSADOR_CAMPAIGN.year}</span></footer>
