@@ -98,7 +98,7 @@ export function CinematicBridge() {
         src="/assets/videos/hero-signal-logo-transition.mp4"
         muted
         playsInline
-        preload="auto"
+        preload="none"
         poster="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         className="absolute inset-0 w-full h-full object-cover"
         style={{ zIndex: 1, backgroundColor: "#050505" }}

@@ -2,19 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import type { AdminSession } from "@/lib/auth";
 import type { Event, EventStatus } from "@prisma/client";
 import { EventControls } from "./event-controls";
-import { SubmissionsTable } from "./submissions-table";
-import { ParticipantSubmissions } from "./participant-submissions";
 import { isHncOrUgx } from "@/lib/events";
 import { registrationPermission, ROLE_LABELS, type AdminPermissions } from "@/lib/admin-permissions";
-import { UsersManager } from "./users-manager";
-import { RolePermissions, type EditableRolePermissions } from "./role-permissions";
-import { AmbassadorApplications } from "./ambassador-applications";
-import { ExecutiveOverviewPanel } from "./executive-overview";
+import type { EditableRolePermissions } from "./role-permissions";
 import type { ExecutiveEvent } from "@/lib/admin-executive";
 import { Users, Calendar, Inbox, LayoutDashboard, MessageSquare } from "lucide-react";
+
+function PanelLoading() {
+  return <p role="status" className="py-6 text-sm text-neutral-400">Loading section…</p>;
+}
+
+const SubmissionsTable = dynamic(() => import("./submissions-table").then((module) => module.SubmissionsTable), { loading: PanelLoading });
+const ParticipantSubmissions = dynamic(() => import("./participant-submissions").then((module) => module.ParticipantSubmissions), { loading: PanelLoading });
+const UsersManager = dynamic(() => import("./users-manager").then((module) => module.UsersManager), { loading: PanelLoading });
+const RolePermissions = dynamic(() => import("./role-permissions").then((module) => module.RolePermissions), { loading: PanelLoading });
+const AmbassadorApplications = dynamic(() => import("./ambassador-applications").then((module) => module.AmbassadorApplications), { loading: PanelLoading });
+const ExecutiveOverviewPanel = dynamic(() => import("./executive-overview").then((module) => module.ExecutiveOverviewPanel), { loading: PanelLoading });
 
 interface AdminDashboardProps {
   session: AdminSession;
@@ -37,6 +44,10 @@ export function AdminDashboard({
   statuses,
 }: AdminDashboardProps) {
   const router = useRouter();
+  const [countState, setCountState] = useState({ source: counts, values: counts });
+  // Reconcile counts when an event settings change refreshes server props.
+  if (countState.source !== counts) setCountState({ source: counts, values: counts });
+  const submissionCounts = countState.source === counts ? countState.values : counts;
   const canViewSubmissions = permissions.hnc || permissions.ugx || permissions.otherRegistrations;
   const availableTabs: Tab[] = [];
   if (session.role === "ADMIN") availableTabs.push("executive");
@@ -51,7 +62,7 @@ export function AdminDashboard({
     submissionEvents[0]?.id ?? null
   );
 
-  const totalSubmissions = Object.values(counts).reduce((a, b) => a + b, 0);
+  const totalSubmissions = Object.values(submissionCounts).reduce((a, b) => a + b, 0);
   const selectedEvent = submissionEvents.find((event) => event.id === selectedEventId) ?? submissionEvents[0];
 
   async function logout() {
@@ -233,7 +244,7 @@ export function AdminDashboard({
                     key={event.id}
                     event={event}
                     shown={statuses[event.id] ?? event.status}
-                    submissionCount={canViewEvent ? counts[event.id] ?? 0 : undefined}
+                    submissionCount={canViewEvent ? submissionCounts[event.id] ?? 0 : undefined}
                     onViewSubmissions={canViewEvent ? () => viewSubmissions(event.id) : undefined}
                   />
                 );
@@ -269,7 +280,7 @@ export function AdminDashboard({
                   >
                     {event.title}
                     <span className="ml-2" style={{ color: "#666666" }}>
-                      {counts[event.id] ?? 0}
+                      {submissionCounts[event.id] ?? 0}
                     </span>
                   </button>
                 );
@@ -279,16 +290,22 @@ export function AdminDashboard({
             {selectedEvent && isHncOrUgx(selectedEvent.slug) ? (
               <ParticipantSubmissions
                 key={selectedEvent.id}
+                canEditRegistrations={session.role === "ADMIN"}
                 canDeleteRegistrations={session.role === "ADMIN"}
                 canReviewPayments={session.role === "ADMIN"}
                 canViewScreenshots={permissions.paymentScreenshots}
                 eventId={selectedEvent.id}
                 eventSlug={selectedEvent.slug}
                 eventTitle={selectedEvent.title}
+                onDeleted={() => setCountState((current) => ({
+                  ...current,
+                  values: { ...current.values, [selectedEvent.id]: Math.max(0, (current.values[selectedEvent.id] ?? 0) - 1) },
+                }))}
               />
             ) : selectedEvent ? (
               <SubmissionsTable
                 key={selectedEvent.id}
+                eventSlug={selectedEvent.slug}
                 eventId={selectedEvent.id}
                 eventTitle={selectedEvent.title}
               />

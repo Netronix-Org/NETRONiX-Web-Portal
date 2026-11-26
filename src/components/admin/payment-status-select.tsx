@@ -1,5 +1,6 @@
 "use client";
 
+import type { AdminParticipant } from "@/lib/admin-participant";
 import { useState } from "react";
 import { PAYMENT_COLORS, PAYMENT_LABELS, PAYMENT_STATUSES, type PaymentStatus } from "@/lib/participants";
 
@@ -8,7 +9,7 @@ export function PaymentStatusSelect({ id, name, status, proofPath, onStatusChang
   name: string;
   status: PaymentStatus;
   proofPath: string | null;
-  onStatusChange: () => void;
+  onStatusChange: (registration: AdminParticipant) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +25,7 @@ export function PaymentStatusSelect({ id, name, status, proofPath, onStatusChang
       });
       const result = await response.json();
       if (response.ok) {
-        onStatusChange();
+        onStatusChange(result.registration);
       } else {
         setError(result.message ?? "Couldn't update payment status.");
       }

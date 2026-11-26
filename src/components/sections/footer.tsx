@@ -215,7 +215,7 @@ export function Footer() {
             aria-hidden="true"
           >
             <div className="w-[92%] translate-y-[28%] opacity-[0.06]">
-              <BrandLogo name="netronix" className="w-full" />
+              <BrandLogo name="netronix" className="w-full" sizes="(max-width: 767px) 120vw, 1600px" />
             </div>
           </div>
 

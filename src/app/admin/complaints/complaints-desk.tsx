@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -90,16 +90,18 @@ function filterParams(query: string, status: string, issueType: string, assigned
   return params;
 }
 
-export default function AdminDashboardPage() {
+export default function AdminDashboardPage({ currentUser }: { currentUser: AdminUser }) {
   const router = useRouter();
 
   // Current admin session
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [staffList, setStaffList] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const complaintsRequest = useRef<AbortController | null>(null);
+  const previousSearch = useRef("");
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,19 +124,6 @@ export default function AdminDashboardPage() {
   const [auditNoteText, setAuditNoteText] = useState("");
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
-
-  // 1. Fetch Current User
-  useEffect(() => {
-    fetch("/api/admin/auth/me")
-      .then((res) => {
-        if (!res.ok) throw new Error("Unauthenticated");
-        return res.json();
-      })
-      .then((data) => setCurrentUser(data.admin))
-      .catch(() => {
-        router.push("/admin/login");
-      });
-  }, [router]);
 
   // 2. Fetch Stats
   const fetchStats = useCallback(async () => {
@@ -164,38 +153,58 @@ export default function AdminDashboardPage() {
 
   // 4. Fetch Complaints List
   const fetchComplaints = useCallback(async () => {
+    complaintsRequest.current?.abort();
+    const controller = new AbortController();
+    complaintsRequest.current = controller;
     setLoading(true);
+    setListError(null);
     try {
       const params = filterParams(searchQuery, statusFilter, issueTypeFilter, assignedFilter);
       params.set("page", currentPage.toString());
       params.set("limit", "12");
 
-      const res = await fetch(`/api/admin/complaints?${params.toString()}`);
+      const res = await fetch(`/api/admin/complaints?${params.toString()}`, { signal: controller.signal });
+      if (res.status === 401 || res.status === 403) {
+        setComplaints([]);
+        router.replace(res.status === 401 ? "/admin/login" : "/admin/portal");
+        return;
+      }
+      if (!res.ok) throw new Error("Unable to load complaints. Please try refreshing.");
       if (res.ok) {
         const data = await res.json();
+        if (controller.signal.aborted) return;
         setComplaints(data.complaints || []);
         setTotalPages(data.pagination.totalPages || 1);
         setTotalCount(data.pagination.total || 0);
       }
     } catch (e) {
-      console.error(e);
+      if (!controller.signal.aborted) {
+        console.error(e);
+        setListError("Unable to load complaints. Please try refreshing.");
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [currentPage, searchQuery, statusFilter, issueTypeFilter, assignedFilter]);
+  }, [currentPage, searchQuery, statusFilter, issueTypeFilter, assignedFilter, router]);
 
   useEffect(() => {
     // Initial fetch on mount
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStats();
     fetchStaff();
   }, [fetchStats, fetchStaff]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchComplaints();
-  }, [fetchComplaints]);
+    const delay = previousSearch.current === searchQuery ? 0 : 200;
+    previousSearch.current = searchQuery;
+    const timer = window.setTimeout(() => { void fetchComplaints(); }, delay);
+    return () => {
+      window.clearTimeout(timer);
+      complaintsRequest.current?.abort();
+    };
+  }, [fetchComplaints, searchQuery]);
 
   // Handle Manual Refresh
   const handleRefresh = () => {
@@ -496,9 +505,10 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ── Complaints Table ─────────────────────────────────────────────── */}
+        {listError && <p role="alert" className="text-sm text-red-400">{listError}</p>}
         <div className="rounded-2xl border border-white/10 bg-[#0E0E0E] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table aria-busy={loading} className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-white/10 bg-[#141414] text-[11px] font-mono uppercase text-neutral-400 tracking-wider">
                   <th className="py-3.5 px-4 font-medium">Ticket ID</th>
@@ -512,7 +522,7 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-sm">
-                {loading ? (
+                {loading && complaints.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-neutral-500 font-mono">
                       Loading queue data…

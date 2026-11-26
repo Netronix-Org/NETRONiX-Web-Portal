@@ -17,6 +17,7 @@ export function NeuralNoise({
   speed = 0.001,
 }: NeuralNoiseProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [red, green, blue] = color;
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
@@ -33,7 +34,11 @@ export function NeuralNoise({
 
     const pointer = { x: 0, y: 0, tX: 0, tY: 0 };
     let uniforms: Record<string, WebGLUniformLocation | null> = {};
-    let animationFrameId: number;
+    let animationFrameId = 0;
+    let width = 1;
+    let height = 1;
+    let visible = false;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     const vsSource = `
       precision mediump float;
@@ -110,6 +115,7 @@ export function NeuralNoise({
       glCtx.linkProgram(program);
       if (!glCtx.getProgramParameter(program, glCtx.LINK_STATUS)) {
         console.error("Program link error:", glCtx.getProgramInfoLog(program));
+        glCtx.deleteProgram(program);
         return null;
       }
       return program;
@@ -129,10 +135,18 @@ export function NeuralNoise({
 
     const vertexShader = createShader(gl, vsSource, gl.VERTEX_SHADER);
     const fragmentShader = createShader(gl, fsSource, gl.FRAGMENT_SHADER);
-    if (!vertexShader || !fragmentShader) return;
+    if (!vertexShader || !fragmentShader) {
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      return;
+    }
 
     const shaderProgram = createProgram(gl, vertexShader, fragmentShader);
-    if (!shaderProgram) return;
+    if (!shaderProgram) {
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      return;
+    }
 
     uniforms = getUniforms(gl, shaderProgram);
     const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
@@ -152,8 +166,8 @@ export function NeuralNoise({
       // Calculate dimensions relative to parent if it's absolute, otherwise window
       // Using clientWidth/clientHeight of parent ensures it fits the section
       const parent = canvasEl.parentElement;
-      const width = parent ? parent.clientWidth : window.innerWidth;
-      const height = parent ? parent.clientHeight : window.innerHeight;
+      width = Math.max(1, parent ? parent.clientWidth : window.innerWidth);
+      height = Math.max(1, parent ? parent.clientHeight : window.innerHeight);
 
       canvasEl.width = width * devicePixelRatio;
       canvasEl.height = height * devicePixelRatio;
@@ -164,29 +178,37 @@ export function NeuralNoise({
       gl.viewport(0, 0, canvasEl.width, canvasEl.height);
     }
 
-    function render() {
+    function drawFrame() {
       if (!gl) return;
       const currentTime = performance.now();
       pointer.x += (pointer.tX - pointer.x) * 0.2;
       pointer.y += (pointer.tY - pointer.y) * 0.2;
 
       gl.uniform1f(uniforms.u_time, currentTime);
-      // Adjust pointer position to be relative to the parent section, not window
-      const parent = canvasEl?.parentElement;
-      const width = parent ? parent.clientWidth : window.innerWidth;
-      const height = parent ? parent.clientHeight : window.innerHeight;
-
+      // Dimensions are measured on resize, rather than reading layout every frame.
       gl.uniform2f(
         uniforms.u_pointer_position,
         pointer.x / width,
         1 - pointer.y / height
       );
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    function render() {
+      drawFrame();
       animationFrameId = requestAnimationFrame(render);
+    }
+
+    function syncAnimation() {
+      cancelAnimationFrame(animationFrameId);
+      if (!visible || document.hidden) return;
+      if (reducedMotion.matches) drawFrame();
+      else animationFrameId = requestAnimationFrame(render);
     }
 
     function setupEvents() {
       const updateMousePosition = (x: number, y: number) => {
+        if (!visible || document.hidden || reducedMotion.matches) return;
         // If parent exists, get pointer coords relative to parent bounding rect
         const parent = canvasEl?.parentElement;
         if (parent) {
@@ -220,19 +242,35 @@ export function NeuralNoise({
 
     const cleanupEvents = setupEvents();
     resizeCanvas();
-    const resizeListener = () => resizeCanvas();
-    window.addEventListener("resize", resizeListener);
-
-    gl.uniform3f(uniforms.u_color, color[0], color[1], color[2]);
+    gl.uniform3f(uniforms.u_color, red, green, blue);
     gl.uniform1f(uniforms.u_speed, speed);
-    render();
+
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRatio > 0;
+      syncAnimation();
+    }, { threshold: 0.001 });
+    observer.observe(canvasEl);
+    const resizeObserver = new ResizeObserver(() => {
+      resizeCanvas();
+      syncAnimation();
+    });
+    resizeObserver.observe(canvasEl.parentElement ?? canvasEl);
+    document.addEventListener("visibilitychange", syncAnimation);
+    reducedMotion.addEventListener("change", syncAnimation);
 
     return () => {
-      window.removeEventListener("resize", resizeListener);
+      observer.disconnect();
+      resizeObserver.disconnect();
+      document.removeEventListener("visibilitychange", syncAnimation);
+      reducedMotion.removeEventListener("change", syncAnimation);
       cleanupEvents();
       cancelAnimationFrame(animationFrameId);
+      gl.deleteBuffer(vertexBuffer);
+      gl.deleteProgram(shaderProgram);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
     };
-  }, [color, speed]);
+  }, [red, green, blue, speed]);
 
   return (
     <canvas

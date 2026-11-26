@@ -8,7 +8,7 @@ const LOGOS = {
   ugx: { src: "/brand/ugx.png", alt: "UGX — Uber.Game X", x: 402, y: 256, width: 1116, height: 568 },
 } as const;
 
-export function BrandLogo({ name, className = "" }: { name: keyof typeof LOGOS; className?: string }) {
+export function BrandLogo({ name, className = "", sizes }: { name: keyof typeof LOGOS; className?: string; sizes?: string }) {
   const logo = LOGOS[name];
   return (
     <span className={`relative block shrink-0 overflow-hidden ${className}`} style={{ aspectRatio: `${logo.width} / ${logo.height}` }}>
@@ -17,7 +17,7 @@ export function BrandLogo({ name, className = "" }: { name: keyof typeof LOGOS; 
         alt={logo.alt}
         width={1920}
         height={1080}
-        unoptimized
+        sizes={sizes ?? (name === "netronix" ? "256px" : "512px")}
         className="absolute max-w-none"
         style={{
           width: `${1920 / logo.width * 100}%`,

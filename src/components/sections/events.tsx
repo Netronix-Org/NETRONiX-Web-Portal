@@ -3,6 +3,17 @@ import { fetchEvents, type EventRow } from "@/lib/events-data";
 import { effectiveStatus, isRegistrationOpen, isPreRegistration, registrationHref, isHncOrUgx } from "@/lib/events";
 import styles from "./events.module.css";
 
+export function EventsLoading() {
+  return (
+    <section id="events" aria-label="Events" aria-busy="true" className={styles.section}>
+      <div className={styles.header}>
+        <h2 className={styles.heading}>Events<span>.</span></h2>
+      </div>
+      <p role="status" className="min-h-[640px] text-sm text-[#A1A1AA]">Loading events…</p>
+    </section>
+  );
+}
+
 export async function Events() {
   const events = await fetchEvents();
   if (events.length === 0) return null;

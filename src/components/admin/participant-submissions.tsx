@@ -1,44 +1,43 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import type { Registration } from "@prisma/client";
+import type { AdminParticipant } from "@/lib/admin-participant";
 import { ChevronDown, LoaderCircle, Trash2 } from "lucide-react";
 import { getAmbassadorCode, getHncChoices, getTransportPreference, getUgxGame, UGX_GAMES } from "@/lib/validation/event-registration";
 import { PaymentScreenshot } from "@/components/forms/payment-proof";
 import { getPaymentStatus, PAYMENT_COLORS, PAYMENT_LABELS, PAYMENT_STATUSES } from "@/lib/participants";
 import { PaymentStatusSelect } from "./payment-status-select";
+import { CustomCsvExport } from "./custom-csv-export";
+import { ParticipantEditor } from "./participant-editor";
 import { RegistrationPassword } from "./registration-password";
 import {
   commonSorts, formatSubmittedAt, rosterItem, rosterList, rosterRow,
   RosterDetails, RosterField, RosterHeading, RosterPagination, RosterToolbar, useRoster,
 } from "./roster-controls";
 
-type ParticipantRow = Pick<Registration,
-  "id" | "fullName" | "phone" | "email" | "cnic" | "city" | "university" | "ambassador" |
-  "formData" | "paymentPaid" | "paymentDisposition" | "paymentProofPath" | "isPreRegistration" | "adminNotes"
-> & { createdAt: string };
+type ParticipantRow = AdminParticipant;
 
 type ParticipantPage = {
-  registrations: (ParticipantRow & { ambassadorVerifiedAt: string | null })[];
+  registrations: ParticipantRow[];
   ambassadorNames: Record<string, string>;
   total: number;
   pageSize: number;
 };
 
-export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDeleteRegistrations, canReviewPayments, canViewScreenshots }: {
+export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canEditRegistrations, canDeleteRegistrations, canReviewPayments, canViewScreenshots, onDeleted }: {
   eventId: string;
   eventSlug: string;
   eventTitle: string;
+  canEditRegistrations: boolean;
   canDeleteRegistrations: boolean;
   canReviewPayments: boolean;
   canViewScreenshots: boolean;
+  onDeleted: () => void;
 }) {
-  const router = useRouter();
   const roster = useRoster<ParticipantPage>("/api/admin/registrations", new URLSearchParams({ eventId }).toString());
   const [expanded, setExpanded] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [deleteFeedback, setDeleteFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const ugx = eventSlug === "ugx";
   const choices = ugx ? UGX_GAMES : ["Participant", "Observer"];
   const data = roster.data;
@@ -49,7 +48,7 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
     )) return;
 
     setDeleting(row.id);
-    setDeleteFeedback(null);
+    setFeedback(null);
     try {
       const response = await fetch(`/api/admin/registrations?id=${encodeURIComponent(row.id)}`, { method: "DELETE" });
       if (!response.ok && response.status !== 404) {
@@ -57,17 +56,30 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
         throw new Error(error?.message ?? "Couldn't delete the registration. Try again.");
       }
       setExpanded((current) => current === row.id ? null : current);
-      setDeleteFeedback({
+      setFeedback({
         message: response.ok ? `Deleted ${row.fullName}’s registration.` : "This registration is already gone.",
         error: false,
       });
+      roster.updateData((current) => ({
+        ...current,
+        registrations: current.registrations.filter((registration) => registration.id !== row.id),
+        total: Math.max(0, current.total - 1),
+      }));
+      if (response.ok) onDeleted();
       roster.refresh();
-      router.refresh();
     } catch (error) {
-      setDeleteFeedback({ message: error instanceof Error ? error.message : "Couldn't delete the registration. Try again.", error: true });
+      setFeedback({ message: error instanceof Error ? error.message : "Couldn't delete the registration. Try again.", error: true });
     } finally {
       setDeleting(null);
     }
+  }
+
+  function applyRegistration(registration: AdminParticipant) {
+    roster.updateData((current) => ({
+      ...current,
+      registrations: current.registrations.map((row) => row.id === registration.id ? registration : row),
+    }));
+    roster.refresh();
   }
 
   return (
@@ -89,12 +101,14 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
         <RosterField label="Transport" options={[["", "Any preference"], ["yes", "Yes"], ["no", "No"]]} value={roster.filters.transport ?? ""} onChange={(value) => roster.change("transport", value)} />
         {!ugx && <RosterField label="Socials opt-in" options={[["", "Any preference"], ["Yes", "Yes"], ["No", "No"]]} value={roster.filters.socials ?? ""} onChange={(value) => roster.change("socials", value)} />}
       </RosterToolbar>
+      <CustomCsvExport eventSlug={eventSlug} eventTitle={eventTitle} params={roster.exportParams} total={data?.total} loading={roster.loading || roster.refreshing} />
 
       {roster.loading && <p role="status" className="py-6 text-sm text-[#B3B3B3]">Loading submissions…</p>}
+      {roster.refreshing && data && <p role="status" className="text-xs text-[#B3B3B3]">Updating results…</p>}
       {roster.error && <p role="alert" className="py-6 text-sm text-[#FFB3BB]">{roster.error}</p>}
-      {deleteFeedback && (
-        <p role={deleteFeedback.error ? "alert" : "status"} className={`text-sm ${deleteFeedback.error ? "text-[#FFB3BB]" : "text-[#B3B3B3]"}`}>
-          {deleteFeedback.message}
+      {feedback && (
+        <p role={feedback.error ? "alert" : "status"} className={`text-sm ${feedback.error ? "text-[#FFB3BB]" : "text-[#B3B3B3]"}`}>
+          {feedback.message}
         </p>
       )}
       {data && (
@@ -137,7 +151,7 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
                         <div className="min-w-0 self-end lg:self-auto">
                           <p className="mb-1 text-xs text-[#B3B3B3] lg:sr-only">Payment</p>
                           {canReviewPayments ? (
-                            <PaymentStatusSelect id={row.id} name={row.fullName} status={paymentStatus} proofPath={row.paymentProofPath} onStatusChange={roster.refresh} />
+                            <PaymentStatusSelect id={row.id} name={row.fullName} status={paymentStatus} proofPath={row.paymentProofPath} onStatusChange={applyRegistration} />
                           ) : (
                             <p className={`text-sm ${PAYMENT_COLORS[paymentStatus]}`}>{PAYMENT_LABELS[paymentStatus]}</p>
                           )}
@@ -175,11 +189,17 @@ export function ParticipantSubmissions({ eventId, eventSlug, eventTitle, canDele
                           ...eventDetails,
                           ...(row.adminNotes ? [["Admin notes", row.adminNotes] as [string, string]] : []),
                         ]}>
+                          {canEditRegistrations && (
+                            <ParticipantEditor row={row} eventSlug={eventSlug} onSaved={(registration) => {
+                              setFeedback({ message: `Updated ${registration.fullName}’s registration.`, error: false });
+                              applyRegistration(registration);
+                            }} />
+                          )}
                           {(canViewScreenshots || canReviewPayments) && (
                             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-3">
                               {canViewScreenshots && <PaymentScreenshot id={row.id} hasProof={Boolean(row.paymentProofPath)} />}
                               {canReviewPayments && (
-                                <RegistrationPassword endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
+                                <RegistrationPassword key={row.email} endpoint={`/api/admin/registrations/${row.id}/credentials`} method="POST" />
                               )}
                             </div>
                           )}

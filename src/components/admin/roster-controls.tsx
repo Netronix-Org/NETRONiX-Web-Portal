@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Download, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 
 type RosterPage = { total: number; pageSize: number };
-type Result<T> = { key: string; data?: T; error?: string };
+type Result<T> = { key: string; url: string; data?: T; error?: string };
 type Option = readonly [value: string, label: string];
 
 export const rosterButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/15 px-3 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300";
@@ -33,14 +33,25 @@ export function useRoster<T extends RosterPage>(endpoint: string, baseParams = "
   const url = `${endpoint}?${params}`;
   const key = `${url}#${revision}`;
 
+  const previousUrl = useRef(url);
+
   useEffect(() => {
+    const before = new URLSearchParams(previousUrl.current.split("?")[1]);
+    const after = new URLSearchParams(url.split("?")[1]);
+    const typing = ["q", "ambassador", "university", "city"].some((field) => before.get(field) !== after.get(field));
+    previousUrl.current = url;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         const response = await fetch(url, { cache: "no-store", signal: controller.signal });
         if (!response.ok) {
           const error = await response.json().catch(() => null);
-          throw new Error(error?.message || "Couldn’t load records. Use Refresh to try again.");
+          const message = error?.message || "Couldn’t load records. Use Refresh to try again.";
+          if (response.status === 401 || response.status === 403) {
+            if (!controller.signal.aborted) setResult({ key, url, error: message });
+            return;
+          }
+          throw new Error(message);
         }
         const data: T = await response.json();
         if (controller.signal.aborted) return;
@@ -49,17 +60,27 @@ export function useRoster<T extends RosterPage>(endpoint: string, baseParams = "
           setPage(lastPage);
           return;
         }
-        setResult({ key, data });
+        setResult({ key, url, data });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setResult({ key, error: error instanceof Error ? error.message : "Couldn’t load records." });
+          setResult((previous) => ({
+            key, url, data: previous?.url === url ? previous.data : undefined,
+            error: error instanceof Error ? error.message : "Couldn’t load records.",
+          }));
         }
       }
-    }, 200);
+    }, typing ? 200 : 0);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [key, page, url]);
 
-  const current = result?.key === key ? result : null;
+  const current = result?.url === url ? result : null;
+  const refreshing = result?.key !== key;
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const updateData = useCallback((update: (data: T) => T) => {
+    setResult((previous) => previous?.url === url && previous.data
+      ? { ...previous, data: update(previous.data) } : previous);
+  }, [url]);
+
   return {
     filters,
     change: (name: string, value: string) => {
@@ -67,11 +88,13 @@ export function useRoster<T extends RosterPage>(endpoint: string, baseParams = "
       setPage(0);
     },
     clear: () => { setFilters({}); setPage(0); },
-    refresh: () => setRevision((value) => value + 1),
+    refresh,
+    updateData,
     exportParams,
     data: current?.data,
-    error: current?.error,
-    loading: !current,
+    error: result?.key === key ? result.error : undefined,
+    loading: !current?.data && refreshing,
+    refreshing,
     page,
     setPage,
   };
@@ -98,12 +121,13 @@ export function RosterField({ label, value, onChange, options, placeholder }: {
   );
 }
 
-export function RosterToolbar({ filters, change, clear, refresh, loading, exportHref, placeholder, sorts, children }: {
+export function RosterToolbar({ filters, change, clear, refresh, loading, refreshing, exportHref, placeholder, sorts, children }: {
   filters: Record<string, string>;
   change: (name: string, value: string) => void;
   clear: () => void;
   refresh: () => void;
   loading: boolean;
+  refreshing?: boolean;
   exportHref?: string;
   placeholder: string;
   sorts: readonly Option[];
@@ -123,7 +147,7 @@ export function RosterToolbar({ filters, change, clear, refresh, loading, export
         </label>
         <RosterField label="Sort by" value={filters.sort ?? ""} onChange={(value) => change("sort", value)} options={sorts} />
         <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-1">
-          <button type="button" onClick={refresh} disabled={loading} className={rosterButton}><RefreshCw size={15} aria-hidden="true" /> Refresh</button>
+          <button type="button" onClick={refresh} disabled={loading || refreshing} className={rosterButton}><RefreshCw size={15} aria-hidden="true" /> Refresh</button>
           {exportHref && <a href={exportHref} className={rosterButton}><Download size={15} aria-hidden="true" /> Export CSV</a>}
           {active.length > 0 && <button type="button" onClick={clear} className="min-h-11 px-1 text-sm font-medium text-sky-300 underline underline-offset-4">Clear all</button>}
         </div>

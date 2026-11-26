@@ -43,50 +43,75 @@ const EDGES: Edge[] = [
 export function NetworkLines() {
   const svgRef  = useRef<SVGSVGElement>(null);
   const dotsRef = useRef<(SVGCircleElement | null)[]>([]);
-  // Store GSAP tweens for cleanup
-  const tlsRef  = useRef<{ kill: () => void }[]>([]);
-
   useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
     let cancelled = false;
+    let visible = false;
+    let gsap: (typeof import("gsap"))["gsap"] | undefined;
+    let loading: Promise<unknown> | undefined;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const active = new Map<SVGCircleElement, { kill: () => void }>();
+    const shouldAnimate = () => !cancelled && visible && !document.hidden && !reducedMotion.matches;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const scheduleSignal = (gsap: any, dot: SVGCircleElement, edge: Edge, delay: number) => {
-      const tl = gsap.fromTo(
-        dot,
+    function scheduleSignal(dot: SVGCircleElement, edge: Edge, delay: number) {
+      if (!gsap || !shouldAnimate()) return;
+      const timeline = gsap.timeline({
+        delay,
+        onComplete: () => {
+          active.delete(dot);
+          scheduleSignal(dot, EDGES[Math.floor(Math.random() * EDGES.length)], 5 + Math.random() * 3);
+        },
+      });
+      timeline.fromTo(dot,
         { attr: { cx: edge.from.x, cy: edge.from.y }, opacity: 0 },
-        {
-          attr: { cx: edge.to.x, cy: edge.to.y },
-          opacity: 1,
-          duration: 1.8,
-          ease: "power2.inOut",
-          delay,
-          onStart: () => gsap.set(dot, { opacity: 1 }),
-          onComplete: () => {
-            gsap.to(dot, { opacity: 0, duration: 0.3 });
-            const nextDelay = 5 + Math.random() * 3;
-            const nextEdge  = EDGES[Math.floor(Math.random() * EDGES.length)];
-            scheduleSignal(gsap, dot, nextEdge, nextDelay);
-          },
-        }
-      );
-      tlsRef.current.push(tl);
-    };
+        { attr: { cx: edge.to.x, cy: edge.to.y }, opacity: 1, duration: 1.8, ease: "power2.inOut" },
+      ).to(dot, { opacity: 0, duration: 0.3 });
+      active.set(dot, timeline);
+    }
 
-    // Lazy-load GSAP — only downloaded when this component mounts
-    import("gsap").then(({ gsap }) => {
-      if (cancelled) return;
+    function start() {
+      if (!shouldAnimate() || active.size) return;
       EDGES.forEach((edge, i) => {
         const dot = dotsRef.current[i];
-        if (!dot) return;
-        const delay = i * 0.9 + Math.random() * 2;
-        scheduleSignal(gsap, dot, edge, delay);
+        if (dot) scheduleSignal(dot, edge, i * 0.9 + Math.random() * 2);
       });
-    });
+    }
+
+    function syncAnimation() {
+      if (!shouldAnimate()) {
+        active.forEach((timeline, dot) => {
+          timeline.kill();
+          dot.style.opacity = "0";
+        });
+        active.clear();
+        return;
+      }
+      if (gsap) start();
+      // Download the optional animation library only when the footer is visible.
+      else if (!loading) {
+        loading = import("gsap").then((module) => {
+          gsap = module.gsap;
+          start();
+        }).catch(() => { loading = undefined; });
+      }
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRatio > 0;
+      syncAnimation();
+    }, { threshold: 0.001 });
+    observer.observe(svg);
+    document.addEventListener("visibilitychange", syncAnimation);
+    reducedMotion.addEventListener("change", syncAnimation);
 
     return () => {
       cancelled = true;
-      tlsRef.current.forEach((tl) => tl?.kill());
-      tlsRef.current = [];
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", syncAnimation);
+      reducedMotion.removeEventListener("change", syncAnimation);
+      active.forEach((timeline) => timeline.kill());
+      active.clear();
     };
   }, []);
 

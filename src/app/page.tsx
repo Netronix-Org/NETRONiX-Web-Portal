@@ -1,8 +1,9 @@
+import { Suspense } from "react";
 import { Nav } from "@/components/ui/nav";
 import { Hero } from "@/components/sections/hero";
 import { CinematicBridge } from "@/components/sections/cinematic-bridge";
 import { About } from "@/components/sections/about";
-import { Events } from "@/components/sections/events";
+import { Events, EventsLoading } from "@/components/sections/events";
 import { AmbassadorCall } from "@/components/sections/ambassador-call";
 import { ComplaintPortal } from "@/components/sections/complaint-portal";
 import { Community } from "@/components/sections/community";
@@ -39,7 +40,9 @@ export default function HomePage() {
 
         {/* 4. Events */}
         <ScrollRevealSection amount={0.06} distance={60}>
-          <Events />
+          <Suspense fallback={<EventsLoading />}>
+            <Events />
+          </Suspense>
         </ScrollRevealSection>
 
         {/* 5. Complaint Portal */}

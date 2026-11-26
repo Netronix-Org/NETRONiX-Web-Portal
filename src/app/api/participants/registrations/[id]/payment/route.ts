@@ -9,6 +9,7 @@ import { getParticipantEmail } from "@/lib/participant-session";
 import { readPaymentImage, paymentStorageFetch, removePaymentProof } from "@/lib/payment-storage";
 import { getPaymentStatus, PARTICIPANT_EVENT_SLUGS, PAYMENT_BUCKET, PAYMENT_IMAGE_TYPES, PAYMENT_STATUSES } from "@/lib/participants";
 import { prisma } from "@/lib/prisma";
+import { participantSelect } from "@/lib/admin-participant";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAmbassadorCode } from "@/lib/validation/event-registration";
 
@@ -195,12 +196,15 @@ export async function PATCH(req: NextRequest, { params }: Context) {
     if (!parsed.success) return NextResponse.json({ message: "Invalid payment status update." }, { status: 400 });
     const status = "status" in parsed.data ? parsed.data.status : parsed.data.paid ? "paid" : "pending";
     const paid = status === "paid";
-    const result = await prisma.registration.updateMany({
-      where: { id, event, paymentProofPath: parsed.data.expectedProofPath },
-      data: { paymentPaid: paid, paymentDisposition: status === "refunded" || status === "rejected" ? status : null },
+    const registration = await prisma.$transaction(async (tx) => {
+      const result = await tx.registration.updateMany({
+        where: { id, event, paymentProofPath: parsed.data.expectedProofPath },
+        data: { paymentPaid: paid, paymentDisposition: status === "refunded" || status === "rejected" ? status : null },
+      });
+      return result.count ? tx.registration.findUniqueOrThrow({ where: { id }, select: participantSelect }) : null;
     });
-    if (!result.count) return NextResponse.json({ message: "The payment record changed. Refresh the list and try again." }, { status: 409 });
-    return NextResponse.json({ paid, status }, { headers: privateHeaders });
+    if (!registration) return NextResponse.json({ message: "The payment record changed. Refresh the list and try again." }, { status: 409 });
+    return NextResponse.json({ paid, status, registration }, { headers: privateHeaders });
   } catch {
     return NextResponse.json({ message: "Couldn't update the payment status." }, { status: 503 });
   }

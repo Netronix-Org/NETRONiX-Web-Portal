@@ -8,6 +8,7 @@ import {
   SKILL_RATING_CATEGORIES,
 } from "@/lib/validation/volunteer-registration";
 import { computeTotal } from "@/lib/validation/interview-score";
+import { CustomCsvExport } from "./custom-csv-export";
 import { InterviewScoreForm } from "./interview-score-form";
 
 type RegistrationRow = Registration & { interviewScore: InterviewScore | null };
@@ -29,9 +30,10 @@ const STATUS_COLOR: Record<RegistrationStatus, string> = {
 interface SubmissionsTableProps {
   eventId: string;
   eventTitle: string;
+  eventSlug: string;
 }
 
-export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps) {
+export function SubmissionsTable({ eventId, eventTitle, eventSlug }: SubmissionsTableProps) {
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -40,6 +42,7 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const exportParams = new URLSearchParams({ eventId, ...(query.trim() ? { q: query.trim() } : {}) }).toString();
   const pageSize = 50;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -136,7 +139,7 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
           </span>
 
           <a
-            href={`/api/admin/registrations/export?eventId=${eventId}`}
+            href={`/api/admin/registrations/export?${exportParams}`}
             className="py-2.5 px-4 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03]"
             style={{ borderColor: "rgba(255,255,255,0.12)", color: "#B3B3B3" }}
           >
@@ -144,6 +147,8 @@ export function SubmissionsTable({ eventId, eventTitle }: SubmissionsTableProps)
           </a>
         </div>
       </div>
+
+      <CustomCsvExport eventSlug={eventSlug} eventTitle={eventTitle} params={exportParams} total={total} loading={loading} />
 
       {error && (
         <p role="alert" className="text-sm" style={{ color: "#E11D2E" }}>

@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { registrationPermission } from "@/lib/admin-permissions";
 import { hasAdminPermission } from "@/lib/admin-permissions.server";
 import { csvCell } from "@/lib/csv";
+import { registrationExportColumns, selectedExportColumns } from "@/lib/registration-export-columns";
 import { getPaymentStatus, PAYMENT_LABELS } from "@/lib/participants";
 import { registrationAmbassadorNames, registrationRosterQuery } from "@/lib/admin-roster-query";
 import { skillLabel, isHncOrUgx } from "@/lib/events";
@@ -24,33 +25,7 @@ type RegistrationWithScore = Registration & { interviewScore: InterviewScore | n
  * attendance sheets and mailing lists.
  */
 
-const COLUMNS = [
-  "Submitted At",
-  "Type",
-  "Name",
-  "Registration Number",
-  "Batch",
-  "Email",
-  "Phone",
-  "Hostel",
-  "Skills",
-  "Other Skill",
-  "About NETRONiX",
-  "Faculty",
-  "Weaknesses",
-  "Strengths",
-  "Why Apply",
-  "Greatest Regret",
-  "Other Society",
-  ...SKILL_RATING_CATEGORIES.map((c) => c.label),
-  "Interview Remarks",
-  ...SCORE_METRICS.map((m) => `Interview ${m.label}`),
-  "Interview Total/10",
-  "Status",
-  "Admin Notes",
-] as const;
-
-function toCsvRow(reg: RegistrationWithScore): string {
+function toCsvRow(reg: RegistrationWithScore): unknown[] {
   const volunteerData = isVolunteerFormData(reg.formData) ? reg.formData : null;
   const score = reg.interviewScore;
 
@@ -82,9 +57,7 @@ function toCsvRow(reg: RegistrationWithScore): string {
     computeTotal(score) ?? "",
     reg.status,
     reg.adminNotes,
-  ]
-    .map(csvCell)
-    .join(",");
+  ];
 }
 
 export async function GET(req: NextRequest) {
@@ -110,6 +83,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "You don’t have access to these registrations." }, { status: 403 });
   }
 
+  const availableColumns = registrationExportColumns(event.slug);
+  const columns = selectedExportColumns(availableColumns, req.nextUrl.searchParams);
+  if (!columns) return NextResponse.json({ message: "Select valid, unique export columns." }, { status: 400 });
+  const indices = columns.map((column) => availableColumns.indexOf(column));
+  const encodeRow = (values: unknown[]) => indices.map((index) => csvCell(values[index])).join(",");
+
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, req.nextUrl.searchParams);
   const registrations = await prisma.registration.findMany({
     where,
@@ -119,26 +98,20 @@ export async function GET(req: NextRequest) {
 
   const isUgx = event.slug === "ugx";
   const ambassadorNames = isHncOrUgx(event.slug) ? await registrationAmbassadorNames(registrations) : {};
-  const csv = isHncOrUgx(event.slug)
-    ? [
-        [
-          "Submitted At", "Type", "Name", "Phone", "Email", "CNIC", "City", "Ambassador", "Ambassador Code", "University", "Transport",
-          ...(isUgx ? ["Game"] : ["Registration type", "Socials opt-in"]),
-          "Payment status", "Ambassador verified at (UTC)", "Admin Notes",
-        ].map(csvCell).join(","),
-        ...registrations.map((reg) => {
-          const { registrationType, socials } = getHncChoices(reg.formData);
-          const code = getAmbassadorCode(reg.formData);
-          return [
-            reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular",
-            reg.fullName, reg.phone, reg.email, reg.cnic, reg.city, ambassadorNames[Number(code)] ?? reg.ambassador, code, reg.university,
-            getTransportPreference(reg.formData),
-            ...(isUgx ? [getUgxGame(reg.formData)] : [registrationType, socials]),
-            PAYMENT_LABELS[getPaymentStatus(reg)], reg.ambassadorVerifiedAt?.toISOString(), reg.adminNotes,
-          ].map(csvCell).join(",");
-        }),
-      ].join("\r\n")
-    : [COLUMNS.map(csvCell).join(","), ...registrations.map(toCsvRow)].join("\r\n");
+  const rows = registrations.map((reg) => {
+    if (!isHncOrUgx(event.slug)) return toCsvRow(reg);
+    const { registrationType, socials } = getHncChoices(reg.formData);
+    const code = getAmbassadorCode(reg.formData);
+    return [
+      reg.createdAt.toISOString(), reg.isPreRegistration ? "Pre-Registration" : "Regular",
+      reg.fullName, reg.phone, reg.email, reg.cnic, reg.city,
+      ambassadorNames[Number(code)] ?? reg.ambassador, code, reg.university,
+      getTransportPreference(reg.formData),
+      ...(isUgx ? [getUgxGame(reg.formData)] : [registrationType, socials]),
+      PAYMENT_LABELS[getPaymentStatus(reg)], reg.ambassadorVerifiedAt?.toISOString(), reg.adminNotes,
+    ];
+  });
+  const csv = [columns.map(csvCell).join(","), ...rows.map(encodeRow)].join("\r\n");
 
   // BOM so Excel opens UTF-8 names correctly.
   const filename = `netronix-${event.slug}-registrations.csv`;

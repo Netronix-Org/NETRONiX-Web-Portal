@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { participantSelect } from "@/lib/admin-participant";
 import { getAuthenticatedAdmin, requireSession } from "@/lib/auth";
 import { Prisma, RegistrationStatus } from "@prisma/client";
 import { isHncOrUgx } from "@/lib/events";
@@ -39,14 +40,11 @@ export async function GET(req: NextRequest) {
   }
   const { where, orderBy } = await registrationRosterQuery(eventId, event.slug, searchParams);
 
+  const query = { where, orderBy, skip: page * ROSTER_PAGE_SIZE, take: ROSTER_PAGE_SIZE };
   const [registrations, total] = await Promise.all([
-    prisma.registration.findMany({
-      where,
-      orderBy,
-      skip: page * ROSTER_PAGE_SIZE,
-      take: ROSTER_PAGE_SIZE,
-      include: { interviewScore: true },
-    }),
+    isHncOrUgx(event.slug)
+      ? prisma.registration.findMany({ ...query, select: participantSelect })
+      : prisma.registration.findMany({ ...query, include: { interviewScore: true } }),
     prisma.registration.count({ where }),
   ]);
 

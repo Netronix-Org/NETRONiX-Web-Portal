@@ -16,37 +16,26 @@ export async function GET(req: NextRequest) {
 
     const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const [
-      total,
-      reported,
-      assigned,
-      inProgress,
-      resolved,
-      rejected,
-      recent24h,
-    ] = await Promise.all([
-      prisma.complaint.count(),
-      prisma.complaint.count({ where: { status: ComplaintStatus.REPORTED } }),
-      prisma.complaint.count({ where: { status: ComplaintStatus.ASSIGNED } }),
-      prisma.complaint.count({ where: { status: ComplaintStatus.IN_PROGRESS } }),
-      prisma.complaint.count({ where: { status: ComplaintStatus.RESOLVED } }),
-      prisma.complaint.count({ where: { status: ComplaintStatus.REJECTED } }),
+    const [counts, recent24h] = await Promise.all([
+      prisma.complaint.groupBy({ by: ["status"], _count: true }),
       prisma.complaint.count({ where: { createdAt: { gte: past24h } } }),
     ]);
+    const countFor = (status: ComplaintStatus) =>
+      counts.find((group) => group.status === status)?._count ?? 0;
 
     return NextResponse.json(
       {
         stats: {
-          total,
-          reported,
-          assigned,
-          inProgress,
-          resolved,
-          rejected,
+          total: counts.reduce((total, group) => total + group._count, 0),
+          reported: countFor(ComplaintStatus.REPORTED),
+          assigned: countFor(ComplaintStatus.ASSIGNED),
+          inProgress: countFor(ComplaintStatus.IN_PROGRESS),
+          resolved: countFor(ComplaintStatus.RESOLVED),
+          rejected: countFor(ComplaintStatus.REJECTED),
           recent24h,
         },
       },
-      { status: 200 }
+      { status: 200, headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {
     console.error("Admin stats error:", error);

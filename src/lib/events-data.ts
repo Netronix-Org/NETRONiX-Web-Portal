@@ -9,6 +9,7 @@ import "server-only";
  */
 
 import { prisma } from "@/lib/prisma";
+import { cache } from "react";
 import type { Event } from "@prisma/client";
 
 const FALLBACK_EVENTS: Event[] = [
@@ -131,12 +132,13 @@ export async function fetchEvents(): Promise<Event[]> {
   }
 }
 
-export async function fetchEventBySlug(slug: string): Promise<Event | null> {
+// Share the metadata/page lookup within this request; event availability stays live.
+export const fetchEventBySlug = cache(async (slug: string): Promise<Event | null> => {
   try {
     return await prisma.event.findUnique({ where: { slug } });
   } catch {
     return FALLBACK_EVENTS.find((e) => e.slug === slug) ?? null;
   }
-}
+});
 
 export type { Event as EventRow };

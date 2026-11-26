@@ -33,10 +33,24 @@ export function Hero({ ambassadorCallOpen = false }: { ambassadorCallOpen?: bool
 
     if (!video) return;
 
-    // Safari requires direct play() call
-    video.play().catch(() => {
-      // Autoplay blocked — content is still shown via setVideoReady above
-    });
+    let visible = true;
+    const syncPlayback = () => {
+      if (!visible || document.hidden) video.pause();
+      // Safari requires a direct play() call. Content stays visible if blocked.
+      else void video.play().catch(() => {});
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRatio > 0;
+      syncPlayback();
+    }, { threshold: 0.001 });
+    observer.observe(video);
+    document.addEventListener("visibilitychange", syncPlayback);
+    syncPlayback();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", syncPlayback);
+      video.pause();
+    };
   }, []);
 
   // Scroll indicator click → smooth scroll to next section

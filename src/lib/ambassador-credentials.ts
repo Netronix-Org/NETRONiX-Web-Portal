@@ -9,15 +9,19 @@ export function ambassadorKey(purpose: "password" | "session" | "participant-ses
 
 export async function issueAmbassadorPassword(id: string) {
   const password = randomBytes(6).toString("base64url");
+  return {
+    password,
+    passwordHash: await bcrypt.hash(password, 12),
+    issuedPassword: sealAmbassadorPassword(id, password),
+  };
+}
+
+export function sealAmbassadorPassword(id: string, password: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", ambassadorKey("password"), iv);
   cipher.setAAD(Buffer.from(id));
   const ciphertext = Buffer.concat([cipher.update(password, "utf8"), cipher.final()]);
-  return {
-    password,
-    passwordHash: await bcrypt.hash(password, 12),
-    issuedPassword: Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64url"),
-  };
+  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64url");
 }
 
 export function revealAmbassadorPassword(id: string, sealed: string): string {
